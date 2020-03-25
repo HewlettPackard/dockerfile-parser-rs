@@ -1,0 +1,17 @@
+[package]
+name = "dockerfile-parser"
+version = "0.2.0"
+authors = ["Tim Buckley <timothy.jas.buckley@hpe.com>"]
+edition = "2018"
+license = "MIT"
+keywords = ["parser", "docker", "dockerfile", "pest"]
+
+[dependencies]
+pest = "2.1"
+pest_derive = "2.1"
+snafu = "0.6"
+enquote = "1.0"
+
+[lib]
+name = "dockerfile_parser"
+path = "src/lib.rs"
