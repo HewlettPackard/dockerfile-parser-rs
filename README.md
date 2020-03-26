@@ -1,5 +1,7 @@
 # dockerfile-rs
 
+[![CircleCI](https://circleci.com/gh/HewlettPackard/dockerfile-parser-rs.svg?style=svg)](https://circleci.com/gh/HewlettPackard/dockerfile-parser-rs)
+
 A pure Rust library for parsing and inspecting Dockerfiles, useful for
 performing static analysis, writing linters, and creating automated tooling
 around Dockerfiles. It uses a proper grammar and can provide useful syntax
