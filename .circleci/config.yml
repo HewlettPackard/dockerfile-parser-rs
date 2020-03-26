@@ -1,0 +1,49 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: rust:1.42-slim-buster
+    steps:
+      - checkout
+      - run:
+          name: patch crate version
+          command: |
+            if [[ -n "$CIRCLE_TAG" ]]; then
+              version=$(echo "$CIRCLE_TAG" | sed -e 's/^v//')
+              sed -i -e "s/version = \"0.1.0\"/version = \"$version\"/" Cargo.toml
+            fi
+      - run:
+          name: cargo test
+          command: cargo test
+
+  publish:
+    docker:
+      - image: rust:1.42-slim-buster
+    steps:
+      - checkout
+      - run:
+          name: patch crate version
+          command: |
+            version=$(echo "$CIRCLE_TAG" | sed -e 's/^v//')
+            sed -i -e "s/version = \"0.1.0\"/version = \"$version\"/" Cargo.toml
+      - run:
+          name: cargo publish
+          command: cargo publish --allow-dirty --locked
+
+workflows:
+  version: 2
+  build-and-publish:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /.*/
+      - publish:
+          requires:
+            - test
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /.*/

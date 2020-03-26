@@ -1,10 +1,21 @@
 [package]
 name = "dockerfile-parser"
-version = "0.2.0"
+description = "a Rust library for parsing, validating, and modifying Dockerfiles"
 authors = ["Tim Buckley <timothy.jas.buckley@hpe.com>"]
 edition = "2018"
 license = "MIT"
 keywords = ["parser", "docker", "dockerfile", "pest"]
+homepage = "https://github.com/HewlettPackard/dockerfile-parser-rs/"
+repository = "https://github.com/HewlettPackard/dockerfile-parser-rs/"
+exclude = [".circleci/**/*"]
+readme = "README.md"
+
+# NOTE: do not change the version here, it will be replaced with the git tag
+# version by CI
+version = "0.1.0"
+
+[badges]
+circle-ci = { repository = "HewlettPackard/dockerfile-parser-rs", branch = "master" }
 
 [dependencies]
 pest = "2.1"
