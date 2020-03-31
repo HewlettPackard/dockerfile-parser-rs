@@ -150,3 +150,37 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
 
   Ok(())
 }
+
+#[test]
+fn parse_comment() -> Result<(), dockerfile_parser::Error> {
+  let dockerfile = Dockerfile::parse(r#"
+    # lorem ipsum
+    LABEL foo=bar
+    #dolor sit amet
+    # consectetur adipiscing elit
+
+    # sed do eiusmod
+    # Duis aute irure dolor
+    # tempor incididunt ut labore
+    LABEL "foo"="bar"
+    # et dolore magna aliqua
+    LABEL "foo=bar"=bar
+    #Ut enim ad minim veniam
+    LABEL foo="bar\
+          baz"
+    # quis nostrud exercitation
+
+    # ullamco laboris nisi
+
+    RUN foo
+  "#)?;
+
+  assert_eq!(dockerfile.instructions.len(), 5);
+
+  assert_eq!(
+    dockerfile.instructions[4],
+    Instruction::Run(RunInstruction::Shell("foo".into()))
+  );
+
+  Ok(())
+}

@@ -29,7 +29,7 @@ step = _{
   )
 }
 
-comment = _{ "#" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
+comment = _{ "#" ~ (!NEWLINE ~ ANY)* }
 string  = @{ "\"" ~ inner ~ "\"" }
 inner   = @{ (!("\"" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ inner)? }
 escape  = @{ "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "\\" | unicode | NEWLINE)? }
