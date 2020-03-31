@@ -1,9 +1,18 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::error::*;
 use crate::util::*;
 use crate::parser::*;
 
+/// A Dockerfile [`RUN` instruction][run].
+///
+/// An run command may be defined as either a single string (to be run in the
+/// default shell), or a list of strings (to be run directly).
+///
+/// [run]: https://docs.docker.com/engine/reference/builder/#run
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RunInstruction {
   Shell(String),
@@ -27,6 +36,21 @@ impl RunInstruction {
 
   pub fn exec<S: Into<String>>(args: Vec<S>) -> RunInstruction {
     RunInstruction::Exec(args.into_iter().map(|s| s.into()).collect())
+  }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a RunInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::Run(r) = instruction {
+      Ok(r)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "RunInstruction".into()
+      })
+    }
   }
 }
 

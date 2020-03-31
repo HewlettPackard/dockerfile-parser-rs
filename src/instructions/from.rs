@@ -1,10 +1,19 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::image::ImageRef;
 use crate::parser::{Pair, Rule};
 use crate::splicer::*;
 use crate::error::*;
 
+/// A Dockerfile [`FROM` instruction][from].
+///
+/// Contains spans for the entire instruction, the image, and the alias (if
+/// any).
+///
+/// [from]: https://docs.docker.com/engine/reference/builder/#from
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FromInstruction {
   pub span: Span,
@@ -61,6 +70,21 @@ impl FromInstruction {
   // per the docs, ARG instructions are only honored in FROMs if they occur
   // before the *first* FROM (but this should be verified)
   // fn image_ref(&self) -> ImageRef { ... }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a FromInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::From(f) = instruction {
+      Ok(f)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "FromInstruction".into()
+      })
+    }
+  }
 }
 
 #[cfg(test)]
