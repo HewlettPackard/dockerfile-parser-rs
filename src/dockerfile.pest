@@ -44,9 +44,6 @@ arg_ws = _{ (ws | ("\\" ~ NEWLINE))+ }
 
 arg_ws_maybe = _{ (ws | ("\\" ~ NEWLINE))* }
 
-// end of a step, used to consume any dangling newlines
-step_end = _{ NEWLINE? }
-
 // continues consuming input beyond a newline, if the newline is preceeded by an
 // escape (\)
 any_breakable = _{
