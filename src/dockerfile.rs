@@ -1,4 +1,4 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
 use std::convert::TryFrom;
 use std::io::{Read, BufReader};
@@ -13,6 +13,24 @@ pub use crate::parser::*;
 pub use crate::instructions::*;
 pub use crate::splicer::*;
 
+/// A single Dockerfile instruction.
+///
+/// Individual instructions structures may be unpacked with pattern matching or
+/// via the `TryFrom` impls on each instruction type.
+///
+/// # Example
+///
+/// ```
+/// use std::convert::TryInto;
+/// use dockerfile_parser::*;
+///
+/// let dockerfile = Dockerfile::parse("FROM alpine:3.11").unwrap();
+/// let from: &FromInstruction = dockerfile.instructions
+///   .get(0).unwrap()
+///   .try_into().unwrap();
+///
+/// assert_eq!(from.image_parsed.tag, Some("3.11".to_string()));
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Instruction {
   From(FromInstruction),
@@ -81,7 +99,32 @@ impl TryFrom<Pair<'_>> for Instruction {
   }
 }
 
-#[derive(Debug, Clone)]
+/// A parsed Dockerfile.
+///
+/// An ordered list of all instructions is available via `instructions`, and
+/// individual stages in a multi-stage build may be iterated over using
+/// `Dockerfile::iter_stages()`.
+///
+/// # Example
+/// ```
+/// use dockerfile_parser::Dockerfile;
+/// use std::io::Read;
+///
+/// let s = r#"
+///   FROM alpine:3.11
+///   RUN echo "hello world"
+/// "#;
+///
+/// assert_eq!(
+///   Dockerfile::parse(&s).unwrap(),
+///   s.parse::<Dockerfile>().unwrap()
+/// );
+/// assert_eq!(
+///   Dockerfile::parse(&s).unwrap(),
+///   Dockerfile::from_reader(s.as_bytes()).unwrap()
+/// );
+/// ```
+#[derive(Debug, Clone, PartialEq)]
 pub struct Dockerfile {
   /// The raw content of the Dockerfile
   pub content: String,
@@ -136,13 +179,25 @@ fn parse_dockerfile(input: &str) -> Result<Dockerfile> {
   })
 }
 
+/// A single stage in a [multi-stage build].
+///
+/// A stage begins with (and includes) a `FROM` instruction and continues until
+/// (but does *not* include) the next `FROM` instruction, if any.
+///
+/// Stages have an index and an optional alias. Later `COPY --from=$index [...]`
+/// instructions may copy files between unnamed build stages. The alias, if
+/// defined in this stage's `FROM` instruction, may be used as well.
+///
+/// Note that instructions in a Dockerfile before the first `FROM` are not
+/// included in the first stage's list of instructions.
+///
+/// [multi-stage build]: https://docs.docker.com/develop/develop-images/multistage-build/
 pub struct Stage<'a> {
   pub index: usize,
   pub instructions: Vec<&'a Instruction>
 }
 
-/// Iterates over build stages, aka a FROM instruction and all proceeding
-/// instructions until the next FROM
+/// Iterates over build stages within a Dockerfile.
 pub struct StageIterator<'a> {
   dockerfile: &'a Dockerfile,
   stage_index: usize,
@@ -202,10 +257,12 @@ impl<'a> Iterator for StageIterator<'a> {
 }
 
 impl Dockerfile {
+  /// Parses a Dockerfile from a string.
   pub fn parse(input: &str) -> Result<Dockerfile> {
     parse_dockerfile(input)
   }
 
+  /// Parses a Dockerfile from a reader.
   pub fn from_reader<R>(reader: R) -> Result<Dockerfile>
   where
     R: Read
@@ -217,6 +274,7 @@ impl Dockerfile {
     Dockerfile::parse(&buf)
   }
 
+  /// Creates an iterator over stages within this Dockerfile.
   pub fn iter_stages(&self) -> StageIterator {
     StageIterator {
       dockerfile: &self,
@@ -225,6 +283,10 @@ impl Dockerfile {
     }
   }
 
+  /// Creates a `Splicer` for this Dockerfile.
+  ///
+  /// Note that the original input string is needed to actually perform any
+  /// splicing.
   pub fn splicer(&self) -> Splicer {
     Splicer::from(self)
   }

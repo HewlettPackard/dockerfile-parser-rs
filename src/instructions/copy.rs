@@ -1,10 +1,16 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
+
+use std::convert::TryFrom;
 
 use snafu::ensure;
 
+use crate::dockerfile::Instruction;
 use crate::parser::{Pair, Rule};
 use crate::error::*;
 
+/// A key/value pair passed to a `COPY` instruction as a flag.
+///
+/// Examples include: `COPY --from=foo /to /from`
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CopyFlag {
   pub name: String,
@@ -38,6 +44,9 @@ impl CopyFlag {
   }
 }
 
+/// A Dockerfile [`COPY` instruction][copy].
+///
+/// [copy]: https://docs.docker.com/engine/reference/builder/#copy
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CopyInstruction {
   pub flags: Vec<CopyFlag>,
@@ -73,6 +82,21 @@ impl CopyInstruction {
       sources: paths,
       destination
     })
+  }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a CopyInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::Copy(c) = instruction {
+      Ok(c)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "CopyInstruction".into()
+      })
+    }
   }
 }
 

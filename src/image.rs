@@ -1,12 +1,30 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
 use std::fmt;
 
 /// A parsed docker image reference
+///
+/// The `Display` impl may be used to convert a parsed image back to a plain
+/// string:
+/// ```
+/// use dockerfile_parser::ImageRef;
+///
+/// let image = ImageRef::parse("alpine:3.11");
+/// assert_eq!(image.registry, None);
+/// assert_eq!(image.image, "alpine");
+/// assert_eq!(image.tag, Some("3.11".to_string()));
+/// assert_eq!(format!("{}", image), "alpine:3.11");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageRef {
+  /// an optional registry, generally Docker Hub if unset
   pub registry: Option<String>,
+
+  /// an image string, possibly including a user or organization name
   pub image: String,
+
+  /// An optional image tag (after the colon, e.g. `:1.2.3`), generally inferred
+  /// to mean `:latest` if unset
   pub tag: Option<String>
 }
 
@@ -18,6 +36,10 @@ fn is_registry(token: &str) -> bool {
 }
 
 impl ImageRef {
+  /// Parses an `ImageRef` from a string.
+  ///
+  /// This is not fallible, however malformed image strings may return
+  /// unexpected results.
   pub fn parse(s: &str) -> ImageRef {
     // tags may be one of:
     // foo (implies registry.hub.docker.com/library/foo:latest)

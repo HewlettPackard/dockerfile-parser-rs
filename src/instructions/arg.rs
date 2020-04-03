@@ -1,14 +1,28 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::parser::{Pair, Rule};
 use crate::error::*;
 
 use enquote::unquote;
 use snafu::ResultExt;
 
+/// A Dockerfile [`ARG` instruction][arg].
+///
+/// [arg]: https://docs.docker.com/engine/reference/builder/#arg
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgInstruction {
+  /// The argument key
   pub name: String,
+
+  /// An optional argument value.
+  ///
+  /// This may be unset when passing arguments through to later stages in a
+  /// [multi-stage build][build].
+  ///
+  /// [build]: https://docs.docker.com/develop/develop-images/multistage-build/
   pub value: Option<String>
 }
 
@@ -40,4 +54,19 @@ impl ArgInstruction {
       name, value
     })
   }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a ArgInstruction {
+ type Error = Error;
+
+ fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+   if let Instruction::Arg(a) = instruction {
+     Ok(a)
+   } else {
+     Err(Error::ConversionError {
+       from: format!("{:?}", instruction),
+       to: "ArgInstruction".into()
+     })
+   }
+ }
 }

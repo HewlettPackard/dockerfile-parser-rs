@@ -1,5 +1,8 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::parser::{Pair, Rule};
 use crate::util::*;
 use crate::error::*;
@@ -7,12 +10,16 @@ use crate::error::*;
 use enquote::unquote;
 use snafu::ResultExt;
 
+/// An environment variable key/value pair
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EnvVar {
   pub key: String,
   pub value: String
 }
 
+/// A Dockerfile [`ENV` instruction][env].
+///
+/// [env]: https://docs.docker.com/engine/reference/builder/#env
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EnvInstruction(Vec<EnvVar>);
 
@@ -82,5 +89,20 @@ impl EnvInstruction {
     }
 
     Ok(EnvInstruction(vars))
+  }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a EnvInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::Env(e) = instruction {
+      Ok(e)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "EnvInstruction".into()
+      })
+    }
   }
 }

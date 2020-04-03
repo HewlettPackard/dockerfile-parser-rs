@@ -1,9 +1,19 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::error::*;
 use crate::util::*;
 use crate::parser::*;
 
+/// A miscellaneous (unsupported) Dockerfile instruction.
+///
+/// These are instructions that aren't explicitly parsed. They may be invalid,
+/// deprecated, or otherwise unsupported by this library.
+///
+/// Unsupported but valid commands include: `MAINTAINER`, `EXPOSE`, `VOLUME`,
+/// `USER`, `WORKDIR`, `ONBUILD`, `STOPSIGNAL`, `HEALTHCHECK`, `SHELL`
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MiscInstruction {
   instruction: String,
@@ -34,5 +44,20 @@ impl MiscInstruction {
     Ok(MiscInstruction {
       instruction, arguments
     })
+  }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a MiscInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::Misc(m) = instruction {
+      Ok(m)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "MiscInstruction".into()
+      })
+    }
   }
 }

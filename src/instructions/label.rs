@@ -1,5 +1,8 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::parser::{Pair, Rule};
 use crate::util::*;
 use crate::error::*;
@@ -7,6 +10,7 @@ use crate::error::*;
 use enquote::unquote;
 use snafu::ResultExt;
 
+/// A single label key/value pair.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Label {
   pub name: String,
@@ -61,6 +65,11 @@ impl Label {
   }
 }
 
+/// A Dockerfile [`LABEL` instruction][label].
+///
+/// A single `LABEL` instruction may set many labels.
+///
+/// [label]: https://docs.docker.com/engine/reference/builder/#label
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct LabelInstruction(pub Vec<Label>);
 
@@ -76,6 +85,21 @@ impl LabelInstruction {
     }
 
     Ok(LabelInstruction(labels))
+  }
+}
+
+impl<'a> TryFrom<&'a Instruction> for &'a LabelInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: &'a Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::Label(l) = instruction {
+      Ok(l)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "LabelInstruction".into()
+      })
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
 use std::convert::TryInto;
 
@@ -49,13 +49,43 @@ impl Span {
   }
 }
 
+/// A utility to repeatedly replace spans of text within a larger document.
+///
+/// Each subsequent call to `Splicer::splice(...)` rewrites the `content` buffer
+/// and appends to the list of internal offsets. `Splicer::splice(...)` then
+/// adjusts span bounds at call-time to ensures repeated calls to `splice(...)`
+/// continue to work even if one or both of the span bounds have shifted.
+///
+/// # Example
+/// ```
+/// use dockerfile_parser::*;
+///
+/// let dockerfile: Dockerfile = r#"
+///   FROM alpine:3.10
+/// "#.parse()?;
+///
+/// let from = match &dockerfile.instructions[0] {
+///   Instruction::From(f) => f,
+///   _ => panic!("invalid")
+/// };
+///
+/// let mut splicer = dockerfile.splicer();
+/// splicer.splice(&from.image_span, "alpine:3.11");
+///
+/// assert_eq!(splicer.content, r#"
+///   FROM alpine:3.11
+/// "#);
+/// # Ok::<(), dockerfile_parser::Error>(())
+/// ```
 pub struct Splicer {
+  /// The current content of the splice buffer.
   pub content: String,
 
   splice_offsets: Vec<SpliceOffset>
 }
 
 impl Splicer {
+  /// Creates a new Splicer from the given Dockerfile.
   pub(crate) fn from(dockerfile: &Dockerfile) -> Splicer {
     Splicer {
       content: dockerfile.content.clone(),
@@ -63,6 +93,14 @@ impl Splicer {
     }
   }
 
+  /// Replaces a Span with the given replacement string, mutating the `content`
+  /// string.
+  ///
+  /// Sections may be deleted by replacing them with an empty string (`""`).
+  ///
+  /// Note that spans are always relative to the *original input document*.
+  /// Span offsets are recalculated at call-time to account for previous calls
+  /// to `splice(...)` that may have shifted one or both of the span bounds.
   pub fn splice(&mut self, span: &Span, replacement: &str) {
     let span = span.adjust_offsets(&self.splice_offsets);
 

@@ -1,9 +1,18 @@
-// (C) Copyright 2019 Hewlett Packard Enterprise Development LP
+// (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::convert::TryFrom;
+
+use crate::dockerfile::Instruction;
 use crate::error::*;
 use crate::util::*;
 use crate::parser::*;
 
+/// A Dockerfile [`ENTRYPOINT` instruction][entrypoint].
+///
+/// An entrypoint may be defined as either a single string (to be run in the
+/// default shell), or a list of strings (to be run directly).
+///
+/// [entrypoint]: https://docs.docker.com/engine/reference/builder/#entrypoint
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum EntrypointInstruction {
   Shell(String),
@@ -30,6 +39,20 @@ impl EntrypointInstruction {
   }
 }
 
+impl TryFrom<Instruction> for EntrypointInstruction {
+  type Error = Error;
+
+  fn try_from(instruction: Instruction) -> std::result::Result<Self, Self::Error> {
+    if let Instruction::Entrypoint(e) = instruction {
+      Ok(e)
+    } else {
+      Err(Error::ConversionError {
+        from: format!("{:?}", instruction),
+        to: "EntrypointInstruction".into()
+      })
+    }
+  }
+}
 
 #[cfg(test)]
 mod tests {
