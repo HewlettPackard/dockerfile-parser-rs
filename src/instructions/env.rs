@@ -10,6 +10,7 @@ use crate::error::*;
 use enquote::unquote;
 use snafu::ResultExt;
 
+/// An environment variable key/value pair
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EnvVar {
   pub key: String,
