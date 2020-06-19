@@ -38,13 +38,13 @@ mod util;
 mod image;
 mod instructions;
 mod splicer;
-mod dockerfile;
+mod dockerfile_parser;
 
 pub use image::*;
 pub use error::*;
 pub use parser::*;
 pub use instructions::*;
 pub use splicer::*;
-pub use crate::dockerfile::*;
+pub use crate::dockerfile_parser::*;
 
 #[cfg(test)] mod test_util;

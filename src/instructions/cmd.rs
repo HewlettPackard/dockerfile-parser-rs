@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use crate::dockerfile::Instruction;
+use crate::dockerfile_parser::Instruction;
 use crate::error::*;
 use crate::util::*;
 use crate::parser::*;

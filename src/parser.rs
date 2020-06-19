@@ -4,7 +4,7 @@ use pest;
 
 /// The internal Pest parser.
 #[derive(Parser)]
-#[grammar = "dockerfile.pest"]
+#[grammar = "dockerfile_parser.pest"]
 pub(crate) struct DockerfileParser;
 
 /// A Pest Pair for Dockerfile rules.

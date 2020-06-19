@@ -3,7 +3,7 @@
 use std::convert::TryInto;
 
 use crate::parser::Pair;
-use crate::dockerfile::Dockerfile;
+use crate::dockerfile_parser::Dockerfile;
 
 /// An offset used to adjust proceeding Spans after content has been spliced
 #[derive(Debug)]
@@ -20,6 +20,10 @@ pub struct Span {
 }
 
 impl Span {
+  pub fn new(start: usize, end: usize) -> Span {
+    Span { start, end }
+  }
+
   pub(crate) fn from_pair(record: &Pair) -> Span {
     let pest_span = record.as_span();
 
@@ -46,6 +50,38 @@ impl Span {
       start: start.try_into().ok().unwrap_or(0),
       end: end.try_into().ok().unwrap_or(0)
     }
+  }
+
+  /// Determines the 0-indexed line number and line-relative position of this
+  /// span.
+  ///
+  /// A reference to the Dockerfile is necessary to examine the original input
+  /// string. Note that if the original span crosses a newline boundary, the
+  /// relative span's `end` field will be larger than the line length.
+  pub fn relative_span(&self, dockerfile: &Dockerfile) -> (usize, Span) {
+    let mut line_start_offset = 0;
+    let mut lines = 0;
+    for (i, c) in dockerfile.content.as_bytes().iter().enumerate() {
+      if i == self.start {
+        break;
+      }
+
+      if *c == b'\n' {
+        lines += 1;
+        line_start_offset = i + 1;
+      }
+    }
+
+    let start = self.start - line_start_offset;
+    let end = start + (self.end - self.start);
+
+    (lines, Span { start, end })
+  }
+}
+
+impl From<(usize, usize)> for Span {
+  fn from(tup: (usize, usize)) -> Span {
+    Span::new(tup.0, tup.1)
   }
 }
 
@@ -116,5 +152,62 @@ impl Splicer {
     let (beginning, rest) = self.content.split_at(span.start);
     let (_, end) = rest.split_at(span.end - span.start);
     self.content = format!("{}{}{}", beginning, replacement, end);
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::convert::TryInto;
+  use indoc::indoc;
+  use crate::*;
+
+  #[test]
+  fn test_relative_span() {
+    let d = Dockerfile::parse(indoc!(r#"
+      FROM alpine:3.10 as build
+      FROM alpine:3.10
+
+      RUN echo "hello world"
+
+      COPY --from=build /foo /bar
+    "#)).unwrap();
+
+    let first_from = TryInto::<&FromInstruction>::try_into(&d.instructions[0]).unwrap();
+    assert_eq!(
+      first_from.alias_span.as_ref().unwrap().relative_span(&d),
+      (0, (20, 25).into())
+    );
+
+    let copy = TryInto::<&CopyInstruction>::try_into(&d.instructions[3]).unwrap();
+
+    let len = copy.span.end - copy.span.start;
+    let content = &d.content[copy.span.start .. copy.span.end];
+
+    let (rel_line_index, rel_span) = copy.span.relative_span(&d);
+    let rel_len = rel_span.end - rel_span.start;
+    assert_eq!(len, rel_len);
+
+    let rel_line = d.content.lines().collect::<Vec<&str>>()[rel_line_index];
+    let rel_content = &rel_line[rel_span.start .. rel_span.end];
+    assert_eq!(rel_line, "COPY --from=build /foo /bar");
+    assert_eq!(content, rel_content);
+
+    // COPY --from=build /foo /bar
+    assert_eq!(
+      copy.span.relative_span(&d),
+      (5, (0, 27).into())
+    );
+
+    // --from=build
+    assert_eq!(
+      copy.flags[0].span.relative_span(&d),
+      (5, (5, 17).into())
+    );
+
+    // build
+    assert_eq!(
+      copy.flags[0].value_span.relative_span(&d),
+      (5, (12, 17).into())
+    );
   }
 }
