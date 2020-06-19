@@ -4,42 +4,52 @@ use std::convert::TryFrom;
 
 use snafu::ensure;
 
-use crate::dockerfile::Instruction;
+use crate::dockerfile_parser::Instruction;
 use crate::parser::{Pair, Rule};
-use crate::error::*;
+use crate::{Span, error::*};
 
 /// A key/value pair passed to a `COPY` instruction as a flag.
 ///
 /// Examples include: `COPY --from=foo /to /from`
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CopyFlag {
+  pub span: Span,
   pub name: String,
-  pub value: String
+  pub name_span: Span,
+  pub value: String,
+  pub value_span: Span
 }
 
 impl CopyFlag {
   fn from_record(record: Pair) -> Result<CopyFlag> {
+    let span = Span::from_pair(&record);
     let mut name = None;
     let mut value = None;
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::copy_flag_name => name = Some(field.as_str()),
-        Rule::copy_flag_value => value = Some(field.as_str()),
+        Rule::copy_flag_name => name = Some((
+          field.as_str().to_string(),
+          Span::from_pair(&field)
+        )),
+        Rule::copy_flag_value => value = Some((
+          field.as_str().to_string(),
+          Span::from_pair(&field)
+        )),
         _ => return Err(unexpected_token(field))
       }
     }
 
-    let name = name.ok_or_else(|| Error::GenericParseError {
+    let (name, name_span) = name.ok_or_else(|| Error::GenericParseError {
       message: "copy flags require a key".into(),
-    })?.to_string();
+    })?;
 
-    let value = value.ok_or_else(|| Error::GenericParseError {
+    let (value, value_span) = value.ok_or_else(|| Error::GenericParseError {
       message: "copy flags require a value".into()
-    })?.to_string();
+    })?;
 
     Ok(CopyFlag {
-      name, value
+      span, name, name_span, value, value_span
     })
   }
 }
@@ -49,6 +59,7 @@ impl CopyFlag {
 /// [copy]: https://docs.docker.com/engine/reference/builder/#copy
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CopyInstruction {
+  pub span: Span,
   pub flags: Vec<CopyFlag>,
   pub sources: Vec<String>,
   pub destination: String
@@ -56,6 +67,7 @@ pub struct CopyInstruction {
 
 impl CopyInstruction {
   pub(crate) fn from_record(record: Pair) -> Result<CopyInstruction> {
+    let span = Span::from_pair(&record);
     let mut flags = Vec::new();
     let mut paths = Vec::new();
 
@@ -78,6 +90,7 @@ impl CopyInstruction {
     let destination = paths.pop().unwrap();
 
     Ok(CopyInstruction {
+      span,
       flags,
       sources: paths,
       destination
@@ -110,9 +123,10 @@ mod tests {
     assert_eq!(
       parse_single("copy foo bar", Rule::copy)?,
       CopyInstruction {
+        span: Span { start: 0, end: 12 },
         flags: vec![],
         sources: strings(&["foo"]),
-        destination: "bar".to_string()
+        destination: "bar".to_string(),
       }.into()
     );
 
@@ -124,9 +138,10 @@ mod tests {
     assert_eq!(
       parse_single("copy foo bar baz qux", Rule::copy)?,
       CopyInstruction {
+        span: Span { start: 0, end: 20 },
         flags: vec![],
         sources: strings(&["foo", "bar", "baz"]),
-        destination: "qux".into()
+        destination: "qux".into(),
       }.into()
     );
 
@@ -139,9 +154,10 @@ mod tests {
     assert_eq!(
       parse_single("copy foo \\\nbar", Rule::copy)?,
       CopyInstruction {
+        span: Span { start: 0, end: 14 },
         flags: vec![],
         sources: strings(&["foo"]),
-        destination: "bar".into()
+        destination: "bar".into(),
       }.into()
     );
 
@@ -162,11 +178,18 @@ mod tests {
         Rule::copy
       )?,
       CopyInstruction {
+        span: Span { start: 0, end: 52 },
         flags: vec![
-          CopyFlag { name: "from".into(), value: "alpine:3.10".into() }
+          CopyFlag {
+            span: Span { start: 5, end: 23 },
+            name: "from".into(),
+            name_span: Span { start: 7, end: 11 },
+            value: "alpine:3.10".into(),
+            value_span: Span { start: 12, end: 23 }
+          }
         ],
         sources: strings(&["/usr/lib/libssl.so.1.1"]),
-        destination: "/tmp/".into()
+        destination: "/tmp/".into(),
       }.into()
     );
 
