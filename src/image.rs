@@ -57,12 +57,12 @@ impl ImageRef {
     // characters could slip through
 
     let parts: Vec<&str> = s.splitn(2, '/').collect();
-    let (registry, image_full) = if parts.len() == 1 {
-      (None, parts[0])
-    } else if is_registry(parts[0]) {
+    let (registry, image_full) = if parts.len() == 2 && is_registry(parts[0]) {
+      // some 3rd party registry
       (Some(parts[0].to_string()), parts[1])
     } else {
-      (None, parts[0])
+      // some other image on the default registry; return the original string
+      (None, s)
     };
 
     // parts length is guaranteed to be at least 1 given an empty string
@@ -87,5 +87,186 @@ impl fmt::Display for ImageRef {
     }
 
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_image_parse_dockerhub() {
+    assert_eq!(
+      ImageRef::parse("alpine:3.10"),
+      ImageRef {
+        registry: None,
+        image: "alpine".into(),
+        tag: Some("3.10".into())
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("foo/bar"),
+      ImageRef {
+        registry: None,
+        image: "foo/bar".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("clux/muslrust"),
+      ImageRef {
+        registry: None,
+        image: "clux/muslrust".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("clux/muslrust:1.41.0-stable"),
+      ImageRef {
+        registry: None,
+        image: "clux/muslrust".into(),
+        tag: Some("1.41.0-stable".into())
+      }
+    );
+  }
+
+  #[test]
+  fn test_image_parse_registry() {
+    assert_eq!(
+      ImageRef::parse("quay.io/prometheus/node-exporter:v0.18.1"),
+      ImageRef {
+        registry: Some("quay.io".into()),
+        image: "prometheus/node-exporter".into(),
+        tag: Some("v0.18.1".into())
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("gcr.io/fake_project/fake_image:fake_tag"),
+      ImageRef {
+        registry: Some("gcr.io".into()),
+        image: "fake_project/fake_image".into(),
+        tag: Some("fake_tag".into())
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("gcr.io/fake_project/fake_image"),
+      ImageRef {
+        registry: Some("gcr.io".into()),
+        image: "fake_project/fake_image".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("gcr.io/fake_image"),
+      ImageRef {
+        registry: Some("gcr.io".into()),
+        image: "fake_image".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("gcr.io/fake_image:fake_tag"),
+      ImageRef {
+        registry: Some("gcr.io".into()),
+        image: "fake_image".into(),
+        tag: Some("fake_tag".into())
+      }
+    );
+  }
+
+  #[test]
+  fn test_image_parse_localhost() {
+    assert_eq!(
+      ImageRef::parse("localhost/foo"),
+      ImageRef {
+        registry: Some("localhost".into()),
+        image: "foo".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("localhost/foo:bar"),
+      ImageRef {
+        registry: Some("localhost".into()),
+        image: "foo".into(),
+        tag: Some("bar".into())
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("localhost/foo/bar"),
+      ImageRef {
+        registry: Some("localhost".into()),
+        image: "foo/bar".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("localhost/foo/bar:baz"),
+      ImageRef {
+        registry: Some("localhost".into()),
+        image: "foo/bar".into(),
+        tag: Some("baz".into())
+      }
+    );
+  }
+
+  #[test]
+  fn test_image_parse_registry_port() {
+    assert_eq!(
+      ImageRef::parse("example.com:1234/foo"),
+      ImageRef {
+        registry: Some("example.com:1234".into()),
+        image: "foo".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("example.com:1234/foo:bar"),
+      ImageRef {
+        registry: Some("example.com:1234".into()),
+        image: "foo".into(),
+        tag: Some("bar".into())
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("example.com:1234/foo/bar"),
+      ImageRef {
+        registry: Some("example.com:1234".into()),
+        image: "foo/bar".into(),
+        tag: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("example.com:1234/foo/bar:baz"),
+      ImageRef {
+        registry: Some("example.com:1234".into()),
+        image: "foo/bar".into(),
+        tag: Some("baz".into())
+      }
+    );
+
+    // docker hub doesn't allow it, but other registries can allow arbitrarily
+    // nested images
+    assert_eq!(
+      ImageRef::parse("example.com:1234/foo/bar/baz:qux"),
+      ImageRef {
+        registry: Some("example.com:1234".into()),
+        image: "foo/bar/baz".into(),
+        tag: Some("qux".into())
+      }
+    );
   }
 }
