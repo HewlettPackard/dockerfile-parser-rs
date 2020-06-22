@@ -8,9 +8,19 @@ performing static analysis, writing linters, and creating automated tooling
 around Dockerfiles. It uses a proper grammar and can provide useful syntax
 errors in addition to a full syntax tree.
 
+## Limitations
+
+ * Buildkit parser directives are not handled at all.
+ * Not all instructions record spans; feel free to file an issue some use case
+   is missing a span
+ * Unknown instructions are parsed as `MiscInstruction` rather than producing
+   an explicit error. A number of valid but less interesting Docker instructions
+   are handled this way, e.g. `ONBUILD`, `MAINTAINER`, etc. See notes in
+   [the grammar](./src/dockerfile_parser.pest) for details.
+
 ## Usage
 
-See [`./examples`](./examples) for a few usage examples, including  small
+See [`./examples`](./examples) for a few usage examples, including a small
 utility to dump a Dockerfile's structure:
 
 ```bash
@@ -82,7 +92,7 @@ though the [code of conduct] for some pointers to get started.
 
 Note that - as mentioned in the code of conduct - code contributions must
 indicate that you accept the [Developer Certificate of Origin][dco],
-essentially asserting you have the necessary rights to submit the code you're 
+essentially asserting you have the necessary rights to submit the code you're
 contributing under the project's license (MIT). If you agree, simply pass `-s`
 to `git commit`:
 
