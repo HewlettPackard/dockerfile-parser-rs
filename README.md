@@ -11,8 +11,8 @@ errors in addition to a full syntax tree.
 ## Limitations
 
  * Buildkit parser directives are not handled at all.
- * Not all instructions record spans; feel free to file an issue some use case
-   is missing a span
+ * Not all instructions record spans; feel free to file an issue if some use
+   case is missing a span
  * Unknown instructions are parsed as `MiscInstruction` rather than producing
    an explicit error. A number of valid but less interesting Docker instructions
    are handled this way, e.g. `ONBUILD`, `MAINTAINER`, etc. See notes in
