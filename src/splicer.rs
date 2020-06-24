@@ -1,6 +1,7 @@
 // (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
 use std::convert::TryInto;
+use std::fmt;
 
 use crate::parser::Pair;
 use crate::dockerfile_parser::Dockerfile;
@@ -13,7 +14,7 @@ struct SpliceOffset {
 }
 
 /// A byte-index tuple representing a span of characters in a string
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Span {
   pub start: usize,
   pub end: usize
@@ -82,6 +83,15 @@ impl Span {
 impl From<(usize, usize)> for Span {
   fn from(tup: (usize, usize)) -> Span {
     Span::new(tup.0, tup.1)
+  }
+}
+
+impl fmt::Debug for Span {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_tuple("")
+      .field(&self.start)
+      .field(&self.end)
+      .finish()
   }
 }
 

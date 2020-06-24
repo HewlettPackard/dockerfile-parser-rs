@@ -13,7 +13,10 @@ fn wrap() -> Result<()> {
 
   let dockerfile = Dockerfile::from_reader(f)?;
   for stage in dockerfile.iter_stages() {
-    println!("stage #{}", stage.index);
+    println!(
+      "stage #{} (parent: {:?}, root: {:?})",
+      stage.index, stage.parent, stage.root
+    );
 
     for ins in stage.instructions {
       println!("  {:?}", ins);
