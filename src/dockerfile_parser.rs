@@ -12,6 +12,7 @@ pub use crate::error::*;
 pub use crate::parser::*;
 pub use crate::instructions::*;
 pub use crate::splicer::*;
+pub use crate::stage::*;
 
 /// A single Dockerfile instruction.
 ///
@@ -179,83 +180,6 @@ fn parse_dockerfile(input: &str) -> Result<Dockerfile> {
   })
 }
 
-/// A single stage in a [multi-stage build].
-///
-/// A stage begins with (and includes) a `FROM` instruction and continues until
-/// (but does *not* include) the next `FROM` instruction, if any.
-///
-/// Stages have an index and an optional alias. Later `COPY --from=$index [...]`
-/// instructions may copy files between unnamed build stages. The alias, if
-/// defined in this stage's `FROM` instruction, may be used as well.
-///
-/// Note that instructions in a Dockerfile before the first `FROM` are not
-/// included in the first stage's list of instructions.
-///
-/// [multi-stage build]: https://docs.docker.com/develop/develop-images/multistage-build/
-pub struct Stage<'a> {
-  pub index: usize,
-  pub instructions: Vec<&'a Instruction>
-}
-
-/// Iterates over build stages within a Dockerfile.
-pub struct StageIterator<'a> {
-  dockerfile: &'a Dockerfile,
-  stage_index: usize,
-  instruction_index: usize
-}
-
-impl<'a> Iterator for StageIterator<'a> {
-  type Item = Stage<'a>;
-
-  fn next(&mut self) -> Option<Stage<'a>> {
-    let mut instructions = Vec::new();
-
-    // instructions before the first FROM are not part of any stage and should
-    // be skipped
-    // to simplify things we generalize this and skip all instructions from
-    // `instruction_index` until the first FROM, regardless of whether or not
-    // this is the beginning of the entire Dockerfile
-    let mut preamble = true;
-
-    let mut iter = self.dockerfile.instructions.iter()
-      .skip(self.instruction_index)
-      .peekable();
-
-    while let Some(ins) = iter.next() {
-      self.instruction_index += 1;
-
-      // skip until the first FROM
-      if preamble {
-        if let Instruction::From(_) = ins {
-          preamble = false;
-        } else {
-          continue;
-        }
-      }
-
-      instructions.push(ins);
-
-      // this stage ends before the next FROM
-      if let Some(Instruction::From(_)) = iter.peek() {
-        break;
-      }
-    }
-
-    if instructions.is_empty() {
-      None
-    } else {
-      let stage = Stage {
-        index: self.stage_index,
-        instructions
-      };
-
-      self.stage_index += 1;
-
-      Some(stage)
-    }
-  }
-}
-
 impl Dockerfile {
   /// Parses a Dockerfile from a string.
   pub fn parse(input: &str) -> Result<Dockerfile> {
@@ -274,13 +198,13 @@ impl Dockerfile {
     Dockerfile::parse(&buf)
   }
 
-  /// Creates an iterator over stages within this Dockerfile.
-  pub fn iter_stages(&self) -> StageIterator {
-    StageIterator {
-      dockerfile: &self,
-      stage_index: 0,
-      instruction_index: 0
-    }
+  /// Returns a `Stages`, which splits this Dockerfile into its build stages.
+  pub fn stages(&self) -> Stages {
+    Stages::new(self)
+  }
+
+  pub fn iter_stages(&self) -> std::vec::IntoIter<Stage<'_>> {
+    self.stages().into_iter()
   }
 
   /// Creates a `Splicer` for this Dockerfile.
