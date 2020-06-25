@@ -26,7 +26,8 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
       image_parsed: ImageRef {
         registry: None,
         image: "alpine".into(),
-        tag: Some("3.10".into())
+        tag: Some("3.10".into()),
+        hash: None
       },
       index: 0,
       alias: None,

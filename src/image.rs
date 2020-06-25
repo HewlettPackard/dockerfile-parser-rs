@@ -25,7 +25,10 @@ pub struct ImageRef {
 
   /// An optional image tag (after the colon, e.g. `:1.2.3`), generally inferred
   /// to mean `:latest` if unset
-  pub tag: Option<String>
+  pub tag: Option<String>,
+
+  /// An optional embedded image hash, e.g. `sha256:...`. Conflicts with `tag`.
+  pub hash: Option<String>
 }
 
 /// Determines if an ImageRef token refers to a registry hostname or not
@@ -65,12 +68,24 @@ impl ImageRef {
       (None, s)
     };
 
-    // parts length is guaranteed to be at least 1 given an empty string
-    let parts: Vec<&str> = image_full.splitn(2, ':').collect();
-    let image = parts[0].to_string();
-    let tag = parts.get(1).map(|p| String::from(*p));
+    if let Some(at_pos) = image_full.find('@') {
+      // parts length is guaranteed to be at least 1 given an empty string
+      let (image, hash) = image_full.split_at(at_pos);
 
-    ImageRef { registry, image, tag }
+      ImageRef {
+        registry,
+        image: image.to_string(),
+        hash: Some(hash[1..].to_string()),
+        tag: None
+      }
+    } else {
+      // parts length is guaranteed to be at least 1 given an empty string
+      let parts: Vec<&str> = image_full.splitn(2, ':').collect();
+      let image = parts[0].to_string();
+      let tag = parts.get(1).map(|p| String::from(*p));
+
+      ImageRef { registry, image, tag, hash: None }
+    }
   }
 }
 
@@ -84,6 +99,8 @@ impl fmt::Display for ImageRef {
 
     if let Some(tag) = &self.tag {
       write!(f, ":{}", tag)?;
+    } else if let Some(hash) = &self.hash {
+      write!(f, "@{}", hash)?;
     }
 
     Ok(())
@@ -101,7 +118,8 @@ mod tests {
       ImageRef {
         registry: None,
         image: "alpine".into(),
-        tag: Some("3.10".into())
+        tag: Some("3.10".into()),
+        hash: None
       }
     );
 
@@ -110,7 +128,8 @@ mod tests {
       ImageRef {
         registry: None,
         image: "foo/bar".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -119,7 +138,8 @@ mod tests {
       ImageRef {
         registry: None,
         image: "clux/muslrust".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -128,7 +148,39 @@ mod tests {
       ImageRef {
         registry: None,
         image: "clux/muslrust".into(),
-        tag: Some("1.41.0-stable".into())
+        tag: Some("1.41.0-stable".into()),
+        hash: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("fake_project/fake_image@fake_hash"),
+      ImageRef {
+        registry: None,
+        image: "fake_project/fake_image".into(),
+        tag: None,
+        hash: Some("fake_hash".into())
+      }
+    );
+
+    // invalid hashes, but should still not panic
+    assert_eq!(
+      ImageRef::parse("fake_project/fake_image@"),
+      ImageRef {
+        registry: None,
+        image: "fake_project/fake_image".into(),
+        tag: None,
+        hash: Some("".into())
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("fake_project/fake_image@sha256:"),
+      ImageRef {
+        registry: None,
+        image: "fake_project/fake_image".into(),
+        tag: None,
+        hash: Some("sha256:".into())
       }
     );
   }
@@ -140,7 +192,8 @@ mod tests {
       ImageRef {
         registry: Some("quay.io".into()),
         image: "prometheus/node-exporter".into(),
-        tag: Some("v0.18.1".into())
+        tag: Some("v0.18.1".into()),
+        hash: None
       }
     );
 
@@ -149,7 +202,8 @@ mod tests {
       ImageRef {
         registry: Some("gcr.io".into()),
         image: "fake_project/fake_image".into(),
-        tag: Some("fake_tag".into())
+        tag: Some("fake_tag".into()),
+        hash: None
       }
     );
 
@@ -158,7 +212,8 @@ mod tests {
       ImageRef {
         registry: Some("gcr.io".into()),
         image: "fake_project/fake_image".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -167,7 +222,8 @@ mod tests {
       ImageRef {
         registry: Some("gcr.io".into()),
         image: "fake_image".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -176,7 +232,18 @@ mod tests {
       ImageRef {
         registry: Some("gcr.io".into()),
         image: "fake_image".into(),
-        tag: Some("fake_tag".into())
+        tag: Some("fake_tag".into()),
+        hash: None
+      }
+    );
+
+    assert_eq!(
+      ImageRef::parse("quay.io/fake_project/fake_image@fake_hash"),
+      ImageRef {
+        registry: Some("quay.io".into()),
+        image: "fake_project/fake_image".into(),
+        tag: None,
+        hash: Some("fake_hash".into())
       }
     );
   }
@@ -188,7 +255,8 @@ mod tests {
       ImageRef {
         registry: Some("localhost".into()),
         image: "foo".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -197,7 +265,8 @@ mod tests {
       ImageRef {
         registry: Some("localhost".into()),
         image: "foo".into(),
-        tag: Some("bar".into())
+        tag: Some("bar".into()),
+        hash: None
       }
     );
 
@@ -206,7 +275,8 @@ mod tests {
       ImageRef {
         registry: Some("localhost".into()),
         image: "foo/bar".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -215,7 +285,8 @@ mod tests {
       ImageRef {
         registry: Some("localhost".into()),
         image: "foo/bar".into(),
-        tag: Some("baz".into())
+        tag: Some("baz".into()),
+        hash: None
       }
     );
   }
@@ -227,7 +298,8 @@ mod tests {
       ImageRef {
         registry: Some("example.com:1234".into()),
         image: "foo".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -236,7 +308,8 @@ mod tests {
       ImageRef {
         registry: Some("example.com:1234".into()),
         image: "foo".into(),
-        tag: Some("bar".into())
+        tag: Some("bar".into()),
+        hash: None
       }
     );
 
@@ -245,7 +318,8 @@ mod tests {
       ImageRef {
         registry: Some("example.com:1234".into()),
         image: "foo/bar".into(),
-        tag: None
+        tag: None,
+        hash: None
       }
     );
 
@@ -254,7 +328,8 @@ mod tests {
       ImageRef {
         registry: Some("example.com:1234".into()),
         image: "foo/bar".into(),
-        tag: Some("baz".into())
+        tag: Some("baz".into()),
+        hash: None
       }
     );
 
@@ -265,7 +340,8 @@ mod tests {
       ImageRef {
         registry: Some("example.com:1234".into()),
         image: "foo/bar/baz".into(),
-        tag: Some("qux".into())
+        tag: Some("qux".into()),
+        hash: None
       }
     );
   }

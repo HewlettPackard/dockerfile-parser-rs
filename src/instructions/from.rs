@@ -101,7 +101,7 @@ mod tests {
       Rule::from,
       |p| FromInstruction::from_record(p, 0)
     )?;
-    
+
     assert_eq!(from, FromInstruction {
       span: Span { start: 0, end: 16 },
       index: 0,
@@ -110,7 +110,8 @@ mod tests {
       image_parsed: ImageRef {
         registry: None,
         image: "alpine".into(),
-        tag: Some("3.10".into())
+        tag: Some("3.10".into()),
+        hash: None
       },
       alias: None,
       alias_span: None
