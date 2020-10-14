@@ -24,7 +24,7 @@ pub enum Error {
   },
 
   #[snafu(display(
-    "error unescaping string: {}", source
+    "error unescaping string: {:?}", source
   ))]
   UnescapeError {
     source: enquote::Error
