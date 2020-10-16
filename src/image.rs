@@ -138,7 +138,8 @@ impl ImageRef {
   /// `ImageRef`.
   ///
   /// If this `ImageRef` contains any unknown variables or if any references are
-  /// recursive, returns None; otherwise, returns the fully-substituted string.
+  /// excessively recursive, returns None; otherwise, returns the
+  /// fully-substituted string.
   pub fn resolve_vars(&self, dockerfile: &Dockerfile) -> Option<ImageRef> {
     let vars: HashMap<&str, &str> = HashMap::from_iter(
       dockerfile.global_args
