@@ -1,6 +1,13 @@
 // (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
+use std::collections::HashMap;
 use std::fmt;
+use std::iter::FromIterator;
+
+use lazy_static::lazy_static;
+use regex::Regex;
+
+use crate::{Dockerfile, Span, Splicer};
 
 /// A parsed docker image reference
 ///
@@ -36,6 +43,44 @@ pub struct ImageRef {
 /// Based on rules from https://stackoverflow.com/a/42116190
 fn is_registry(token: &str) -> bool {
   token == "localhost" || token.contains('.') || token.contains(':')
+}
+
+/// Given a map of key/value pairs, perform variable substitution on a given
+/// input string. `max_recursion_depth` controls the maximum allowed recursion
+/// depth if variables refer to other strings themselves containing variable
+/// references. A small number but reasonable is recommended by default, e.g.
+/// 16.
+/// If None is returned, substitution was impossible, either because a
+/// referenced variable did not exist, or recursion depth was exceeded.
+fn substitute(
+  s: &str, vars: &HashMap<&str, &str>, max_recursion_depth: u8
+) -> Option<String> {
+  lazy_static! {
+    static ref VAR: Regex = Regex::new(r"\$(?:([A-Za-z0-9_]+)|\{([A-Za-z0-9_]+)\})").unwrap();
+  }
+
+  let mut splicer = Splicer::from_str(s);
+
+  for caps in VAR.captures_iter(s) {
+    if max_recursion_depth == 0 {
+      // can't substitute, so give up
+      return None;
+    }
+
+    let full_range = caps.get(0)?.range();
+    let var_name = caps.get(1).or(caps.get(2))?;
+    let var_content = vars.get(var_name.as_str())?;
+    let substituted_content = substitute(
+      var_content,
+      vars,
+      max_recursion_depth.saturating_sub(1)
+    )?;
+
+    // splice the substituted content back into the output string
+    splicer.splice(&Span::new(full_range.start, full_range.end), &substituted_content);
+  }
+
+  Some(splicer.content)
 }
 
 impl ImageRef {
@@ -87,6 +132,19 @@ impl ImageRef {
       ImageRef { registry, image, tag, hash: None }
     }
   }
+
+  pub fn resolve_vars(&self, dockerfile: &Dockerfile) -> Option<ImageRef> {
+    let vars: HashMap<&str, &str> = HashMap::from_iter(
+      dockerfile.global_args
+        .iter()
+        .filter_map(|a| match a.value.as_deref() {
+          Some(v) => Some((a.name.as_str(), v)),
+          None => None
+        })
+    );
+
+    substitute(&self.to_string(), &vars, 16).map(|s| ImageRef::parse(&s))
+  }
 }
 
 impl fmt::Display for ImageRef {
@@ -110,6 +168,10 @@ impl fmt::Display for ImageRef {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  use std::convert::TryInto;
+  use indoc::indoc;
+  use crate::instructions::*;
 
   #[test]
   fn test_image_parse_dockerhub() {
@@ -343,6 +405,157 @@ mod tests {
         tag: Some("qux".into()),
         hash: None
       }
+    );
+  }
+
+  #[test]
+  fn test_substitute() {
+    let mut vars = HashMap::new();
+    vars.insert("foo", "bar");
+    vars.insert("baz", "qux");
+    vars.insert("lorem", "$foo");
+    vars.insert("ipsum", "${lorem}");
+    vars.insert("recursion1", "$recursion2");
+    vars.insert("recursion2", "$recursion1");
+
+    assert_eq!(
+      substitute("hello world", &vars, 16).as_deref(),
+      Some("hello world")
+    );
+
+    assert_eq!(
+      substitute("hello $foo", &vars, 16).as_deref(),
+      Some("hello bar")
+    );
+
+    assert_eq!(
+      substitute("hello $foo", &vars, 0).as_deref(),
+      None
+    );
+
+    assert_eq!(
+      substitute("hello ${foo}", &vars, 16).as_deref(),
+      Some("hello bar")
+    );
+
+    assert_eq!(
+      substitute("$baz $foo", &vars, 16).as_deref(),
+      Some("qux bar")
+    );
+
+    assert_eq!(
+      substitute("hello $lorem", &vars, 16).as_deref(),
+      Some("hello bar")
+    );
+
+    assert_eq!(
+      substitute("hello $lorem", &vars, 1).as_deref(),
+      None
+    );
+
+    assert_eq!(
+      substitute("hello $ipsum", &vars, 16).as_deref(),
+      Some("hello bar")
+    );
+
+    assert_eq!(
+      substitute("hello $ipsum", &vars, 2).as_deref(),
+      None
+    );
+
+    assert_eq!(
+      substitute("hello $recursion1", &vars, 16).as_deref(),
+      None
+    );
+  }
+
+  #[test]
+  fn test_resolve_vars() {
+    let d = Dockerfile::parse(indoc!(r#"
+      ARG image=alpine:3.12
+      FROM $image
+    "#)).unwrap();
+
+    let from: &FromInstruction = d.instructions
+      .get(1).unwrap()
+      .try_into().unwrap();
+
+    assert_eq!(
+      from.image_parsed.resolve_vars(&d),
+      Some(ImageRef::parse("alpine:3.12"))
+    );
+  }
+
+  #[test]
+  fn test_resolve_vars_nested() {
+    let d = Dockerfile::parse(indoc!(r#"
+      ARG image=alpine
+      ARG unnecessarily_nested=${image}
+      ARG tag=3.12
+      FROM ${unnecessarily_nested}:${tag}
+    "#)).unwrap();
+
+    let from: &FromInstruction = d.instructions
+      .get(3).unwrap()
+      .try_into().unwrap();
+
+    assert_eq!(
+      from.image_parsed.resolve_vars(&d),
+      Some(ImageRef::parse("alpine:3.12"))
+    );
+  }
+
+  #[test]
+  fn test_resolve_vars_technically_invalid() {
+    // docker allows this, but we can't give an answer
+    let d = Dockerfile::parse(indoc!(r#"
+      ARG image
+      FROM $image
+    "#)).unwrap();
+
+    let from: &FromInstruction = d.instructions
+      .get(1).unwrap()
+      .try_into().unwrap();
+
+    assert_eq!(
+      from.image_parsed.resolve_vars(&d),
+      None
+    );
+  }
+
+  #[test]
+  fn test_resolve_vars_typo() {
+    // docker allows this, but we can't give an answer
+    let d = Dockerfile::parse(indoc!(r#"
+      ARG image="alpine:3.12"
+      FROM $foo
+    "#)).unwrap();
+
+    let from: &FromInstruction = d.instructions
+      .get(1).unwrap()
+      .try_into().unwrap();
+
+    assert_eq!(
+      from.image_parsed.resolve_vars(&d),
+      None
+    );
+  }
+
+  #[test]
+  fn test_resolve_vars_out_of_order() {
+    // docker allows this, but we can't give an answer
+    let d = Dockerfile::parse(indoc!(r#"
+      FROM $image
+      ARG image="alpine:3.12"
+    "#)).unwrap();
+
+    let from: &FromInstruction = d.instructions
+      .get(0).unwrap()
+      .try_into().unwrap();
+
+    assert_eq!(
+      from.image_parsed.resolve_vars(&d),
+      None
     );
   }
 }
