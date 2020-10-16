@@ -133,6 +133,12 @@ impl ImageRef {
     }
   }
 
+  /// Given a Dockerfile (and its global `ARG`s), perform any necessary
+  /// variable substitution to resolve any variable references in this
+  /// `ImageRef`.
+  ///
+  /// If this `ImageRef` contains any unknown variables or if any references are
+  /// recursive, returns None; otherwise, returns the fully-substituted string.
   pub fn resolve_vars(&self, dockerfile: &Dockerfile) -> Option<ImageRef> {
     let vars: HashMap<&str, &str> = HashMap::from_iter(
       dockerfile.global_args
