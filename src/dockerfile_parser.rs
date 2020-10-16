@@ -162,7 +162,7 @@ fn parse_dockerfile(input: &str) -> Result<Dockerfile> {
         from_found = true;
       },
       Instruction::Arg(ref arg) => {
-        // args preceeding the first FROM instruction may be substituted into
+        // args preceding the first FROM instruction may be substituted into
         // all subsequent FROM image refs
         if !from_found {
           global_args.push(arg.clone());

@@ -139,6 +139,13 @@ impl Splicer {
     }
   }
 
+  pub(crate) fn from_str(s: &str) -> Splicer {
+    Splicer {
+      content: s.to_string(),
+      splice_offsets: Vec::new()
+    }
+  }
+
   /// Replaces a Span with the given replacement string, mutating the `content`
   /// string.
   ///
