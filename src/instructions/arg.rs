@@ -3,8 +3,9 @@
 use std::convert::TryFrom;
 
 use crate::dockerfile_parser::Instruction;
-use crate::parser::{Pair, Rule};
 use crate::error::*;
+use crate::parser::{Pair, Rule};
+use crate::splicer::Span;
 
 use enquote::unquote;
 use snafu::ResultExt;
@@ -14,8 +15,12 @@ use snafu::ResultExt;
 /// [arg]: https://docs.docker.com/engine/reference/builder/#arg
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgInstruction {
+  pub span: Span,
+
   /// The argument key
   pub name: String,
+
+  pub name_span: Span,
 
   /// An optional argument value.
   ///
@@ -23,35 +28,51 @@ pub struct ArgInstruction {
   /// [multi-stage build][build].
   ///
   /// [build]: https://docs.docker.com/develop/develop-images/multistage-build/
-  pub value: Option<String>
+  pub value: Option<String>,
+
+  pub value_span: Option<Span>,
 }
 
 impl ArgInstruction {
   pub(crate) fn from_record(record: Pair) -> Result<ArgInstruction> {
+    let span = Span::from_pair(&record);
     let mut name = None;
     let mut value = None;
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::arg_name => name = Some(field.as_str()),
+        Rule::arg_name => name = Some((field.as_str(), Span::from_pair(&field))),
         Rule::arg_quoted_value => {
           let v = unquote(field.as_str()).context(UnescapeError)?;
 
-          value = Some(v);
+          value = Some((v, Span::from_pair(&field)));
         }
-        Rule::arg_value => value = Some(field.as_str().to_string()),
+        Rule::arg_value => value = Some((
+          field.as_str().to_string(),
+          Span::from_pair(&field)
+        )),
         _ => return Err(unexpected_token(field))
       }
     }
 
-    let name = name.ok_or_else(|| Error::GenericParseError {
-      message: "arg name is required".into()
-    })?.to_string();
+    let (name, name_span) = match name {
+      Some((name, name_span)) => (name.to_string(), name_span),
+      _ => return Err(Error::GenericParseError {
+        message: "arg name is required".into()
+      })
+    };
 
-    let value = value.map(String::from);
+    let (value, value_span) = match value {
+      Some((value, value_span)) => (Some(value), Some(value_span)),
+      None => (None, None)
+    };
 
     Ok(ArgInstruction {
-      name, value
+      span,
+      name,
+      name_span,
+      value,
+      value_span,
     })
   }
 }
