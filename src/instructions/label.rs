@@ -55,11 +55,11 @@ impl Label {
 
     let name = name.ok_or_else(|| Error::GenericParseError {
       message: "label name is required".into()
-    })?.to_string();
+    })?;
 
     let value = value.ok_or_else(|| Error::GenericParseError {
       message: "label value is required".into()
-    })?.to_string();
+    })?;
 
     Ok(Label::new(name, value))
   }

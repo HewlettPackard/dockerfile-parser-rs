@@ -76,7 +76,7 @@ fn substitute<'a, 'b>(
     }
 
     let full_range = caps.get(0)?.range();
-    let var_name = caps.get(1).or(caps.get(2))?;
+    let var_name = caps.get(1).or_else(|| caps.get(2))?;
     let var_content = vars.get(var_name.as_str())?;
     let substituted_content = substitute(
       var_content,

@@ -91,7 +91,7 @@ impl<'a> Stage<'a> {
       .iter()
       .enumerate()
       .find_map(|(i, ins)| match ins {
-        Instruction::Arg(a) => if &a.name == name { Some(i) } else { None },
+        Instruction::Arg(a) => if a.name == name { Some(i) } else { None },
         _ => None
       })
   }
