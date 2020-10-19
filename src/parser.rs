@@ -1,7 +1,5 @@
 // (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
-use pest;
-
 /// The internal Pest parser.
 #[derive(Parser)]
 #[grammar = "dockerfile_parser.pest"]
