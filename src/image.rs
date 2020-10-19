@@ -1,6 +1,6 @@
 // (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::iter::FromIterator;
 
@@ -52,12 +52,20 @@ fn is_registry(token: &str) -> bool {
 /// 16.
 /// If None is returned, substitution was impossible, either because a
 /// referenced variable did not exist, or recursion depth was exceeded.
-fn substitute(
-  s: &str, vars: &HashMap<&str, &str>, max_recursion_depth: u8
+fn substitute<'a, 'b>(
+  s: &'a str,
+  vars: &'b HashMap<&'b str, &'b str>,
+  used_vars: &mut HashSet<String>,
+  max_recursion_depth: u8
 ) -> Option<String> {
   lazy_static! {
     static ref VAR: Regex = Regex::new(r"\$(?:([A-Za-z0-9_]+)|\{([A-Za-z0-9_]+)\})").unwrap();
   }
+
+  // note: docker also allows defaults in FROMs, e.g.
+  //   ARG tag
+  //   FROM alpine:${tag:-3.12}
+  // this isn't currently supported.
 
   let mut splicer = Splicer::from_str(s);
 
@@ -73,8 +81,10 @@ fn substitute(
     let substituted_content = substitute(
       var_content,
       vars,
+      used_vars,
       max_recursion_depth.saturating_sub(1)
     )?;
+    used_vars.insert(var_name.as_str().to_string());
 
     // splice the substituted content back into the output string
     splicer.splice(&Span::new(full_range.start, full_range.end), &substituted_content);
@@ -135,13 +145,15 @@ impl ImageRef {
 
   /// Given a Dockerfile (and its global `ARG`s), perform any necessary
   /// variable substitution to resolve any variable references in this
-  /// `ImageRef`.
+  /// `ImageRef` and returns a list of variables included in the end result.
   ///
   /// If this `ImageRef` contains any unknown variables or if any references are
   /// excessively recursive, returns None; otherwise, returns the
   /// fully-substituted string.
-  pub fn resolve_vars(&self, dockerfile: &Dockerfile) -> Option<ImageRef> {
-    let vars: HashMap<&str, &str> = HashMap::from_iter(
+  pub fn resolve_vars_with_context<'a>(
+    &self, dockerfile: &'a Dockerfile
+  ) -> Option<(ImageRef, HashSet<String>)> {
+    let vars: HashMap<&'a str, &'a str> = HashMap::from_iter(
       dockerfile.global_args
         .iter()
         .filter_map(|a| match a.value.as_deref() {
@@ -150,7 +162,24 @@ impl ImageRef {
         })
     );
 
-    substitute(&self.to_string(), &vars, 16).map(|s| ImageRef::parse(&s))
+    let mut used_vars = HashSet::new();
+
+    if let Some(s) = substitute(&self.to_string(), &vars, &mut used_vars, 16) {
+      Some((ImageRef::parse(&s), used_vars))
+    } else {
+      None
+    }
+  }
+
+  /// Given a Dockerfile (and its global `ARG`s), perform any necessary
+  /// variable substitution to resolve any variable references in this
+  /// `ImageRef`.
+  ///
+  /// If this `ImageRef` contains any unknown variables or if any references are
+  /// excessively recursive, returns None; otherwise, returns the
+  /// fully-substituted string.
+  pub fn resolve_vars(&self, dockerfile: &Dockerfile) -> Option<ImageRef> {
+    self.resolve_vars_with_context(dockerfile).map(|(image, _vars)| image)
   }
 }
 
@@ -425,55 +454,98 @@ mod tests {
     vars.insert("recursion1", "$recursion2");
     vars.insert("recursion2", "$recursion1");
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello world", &vars, 16).as_deref(),
+      substitute("hello world", &vars, &mut used_vars, 16).as_deref(),
       Some("hello world")
     );
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $foo", &vars, 16).as_deref(),
+      substitute("hello $foo", &vars, &mut used_vars, 16).as_deref(),
       Some("hello bar")
     );
+    assert_eq!(used_vars, {
+      let mut h = HashSet::new();
+      h.insert("foo".to_string());
+      h
+    });
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $foo", &vars, 0).as_deref(),
+      substitute("hello $foo", &vars, &mut used_vars, 0).as_deref(),
       None
     );
+    assert!(used_vars.is_empty());
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello ${foo}", &vars, 16).as_deref(),
+      substitute("hello ${foo}", &vars, &mut used_vars, 16).as_deref(),
       Some("hello bar")
     );
+    assert_eq!(used_vars, {
+      let mut h = HashSet::new();
+      h.insert("foo".to_string());
+      h
+    });
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("$baz $foo", &vars, 16).as_deref(),
+      substitute("$baz $foo", &vars, &mut used_vars, 16).as_deref(),
       Some("qux bar")
     );
+    assert_eq!(used_vars, {
+      let mut h = HashSet::new();
+      h.insert("baz".to_string());
+      h.insert("foo".to_string());
+      h
+    });
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $lorem", &vars, 16).as_deref(),
+      substitute("hello $lorem", &vars, &mut used_vars, 16).as_deref(),
       Some("hello bar")
     );
+    assert_eq!(used_vars, {
+      let mut h = HashSet::new();
+      h.insert("foo".to_string());
+      h.insert("lorem".to_string());
+      h
+    });
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $lorem", &vars, 1).as_deref(),
+      substitute("hello $lorem", &vars, &mut used_vars, 1).as_deref(),
       None
     );
+    assert!(used_vars.is_empty());
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $ipsum", &vars, 16).as_deref(),
+      substitute("hello $ipsum", &vars, &mut used_vars, 16).as_deref(),
       Some("hello bar")
     );
+    assert_eq!(used_vars, {
+      let mut h = HashSet::new();
+      h.insert("foo".to_string());
+      h.insert("lorem".to_string());
+      h.insert("ipsum".to_string());
+      h
+    });
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $ipsum", &vars, 2).as_deref(),
+      substitute("hello $ipsum", &vars, &mut used_vars, 2).as_deref(),
       None
     );
+    assert!(used_vars.is_empty());
 
+    let mut used_vars = HashSet::new();
     assert_eq!(
-      substitute("hello $recursion1", &vars, 16).as_deref(),
+      substitute("hello $recursion1", &vars, &mut used_vars, 16).as_deref(),
       None
     );
+    assert!(used_vars.is_empty());
   }
 
   #[test]

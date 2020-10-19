@@ -81,6 +81,22 @@ impl<'a> PartialEq for Stage<'a> {
   }
 }
 
+impl<'a> Stage<'a> {
+  /// Finds the index, relative to this stage, of an ARG instruction defining
+  /// the given name. Per the Dockerfile spec, only instructions following the
+  /// ARG definition in a particular stage will have the value in scope, even
+  /// if it was a defined globally or in a previous stage.
+  pub fn arg_index(&self, name: &str) -> Option<usize> {
+    self.instructions
+      .iter()
+      .enumerate()
+      .find_map(|(i, ins)| match ins {
+        Instruction::Arg(a) => if &a.name == name { Some(i) } else { None },
+        _ => None
+      })
+  }
+}
+
 /// A collection of stages in a [multi-stage build].
 ///
 /// # Example
