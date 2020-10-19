@@ -214,6 +214,25 @@ impl Dockerfile {
   pub fn splicer(&self) -> Splicer {
     Splicer::from(self)
   }
+
+  /// Attempts to find a global argument by name. Returns None if no global ARG
+  /// with the given name exists.
+  pub fn get_global_arg(&self, name: &str) -> Option<&ArgInstruction> {
+    for ins in &self.instructions {
+      match ins {
+        Instruction::Arg(a) => {
+          if a.name == name {
+            return Some(a);
+          } else {
+            continue
+          }
+        },
+        _ => return None
+      }
+    }
+
+    None
+  }
 }
 
 impl FromStr for Dockerfile {
