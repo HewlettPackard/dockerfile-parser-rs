@@ -4,7 +4,6 @@ use std::convert::TryFrom;
 
 use crate::dockerfile_parser::Instruction;
 use crate::parser::{Pair, Rule};
-use crate::util::*;
 use crate::error::*;
 
 use enquote::unquote;
@@ -15,6 +14,19 @@ use snafu::ResultExt;
 pub struct EnvVar {
   pub key: String,
   pub value: String
+}
+
+impl EnvVar {
+  pub fn new<S1, S2>(key: S1, value: S2) -> EnvVar
+  where
+    S1: Into<String>,
+    S2: Into<String>,
+  {
+    EnvVar {
+      key: key.into(),
+      value: value.into(),
+    }
+  }
 }
 
 /// A Dockerfile [`ENV` instruction][env].
@@ -37,6 +49,11 @@ fn parse_env_pair(record: Pair) -> Result<EnvVar> {
 
         value = Some(v)
       },
+      Rule::env_pair_single_quoted_value => {
+        let v = unquote(field.as_str()).context(UnescapeError)?;
+
+        value = Some(v)
+      },
       _ => return Err(unexpected_token(field))
     }
   }
@@ -53,31 +70,6 @@ fn parse_env_pair(record: Pair) -> Result<EnvVar> {
 }
 
 impl EnvInstruction {
-  pub(crate) fn from_single_record(record: Pair) -> Result<EnvInstruction> {
-    let mut key = None;
-    let mut value = None;
-
-    for field in record.into_inner() {
-      match field.as_rule() {
-        Rule::env_single_name => key = Some(field.as_str()),
-        Rule::env_single_value => value = Some(field.as_str()),
-        _ => return Err(unexpected_token(field))
-      }
-    }
-
-    let key = key.ok_or_else(|| Error::GenericParseError {
-      message: "env requires a key".into()
-    })?.to_string();
-
-    let value = clean_escaped_breaks(
-      value.ok_or_else(|| Error::GenericParseError {
-        message: "env requires a value".into()
-      })?
-    );
-
-    Ok(EnvInstruction(vec![EnvVar { key, value }]))
-  }
-
   pub(crate) fn from_pairs_record(record: Pair) -> Result<EnvInstruction> {
     let mut vars = Vec::new();
 
@@ -104,5 +96,54 @@ impl<'a> TryFrom<&'a Instruction> for &'a EnvInstruction {
         to: "EnvInstruction".into()
       })
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::Dockerfile;
+  use crate::test_util::*;
+
+  #[test]
+  fn env() -> Result<()> {
+    assert_eq!(
+      parse_single(r#"env foo=bar"#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("foo", "bar")]).into()
+    );
+
+    assert_eq!(
+      parse_single(r#"env foo="bar""#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("foo", "bar")]).into()
+    );
+
+    assert_eq!(
+      parse_single(r#"env foo="bar\"baz""#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("foo", "bar\"baz")]).into()
+    );
+
+    assert_eq!(
+      parse_single(r#"env foo='bar'"#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("foo", "bar")]).into()
+    );
+
+    assert_eq!(
+      parse_single(r#"env foo='bar\'baz'"#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("foo", "bar'baz")]).into()
+    );
+
+    assert_eq!(
+      parse_single(r#"env foo="123" bar='456' baz=789"#, Rule::env)?,
+      EnvInstruction(vec![
+        EnvVar::new("foo", "123"),
+        EnvVar::new("bar", "456"),
+        EnvVar::new("baz", "789"),
+      ]).into()
+    );
+
+    assert!(Dockerfile::parse(r#"env foo="bar"bar"#).is_err());
+    assert!(Dockerfile::parse(r#"env foo='bar'bar"#).is_err());
+
+    Ok(())
   }
 }
