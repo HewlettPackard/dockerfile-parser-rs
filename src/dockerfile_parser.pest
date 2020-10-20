@@ -30,13 +30,15 @@ step = _{
 }
 
 comment = _{ "#" ~ (!NEWLINE ~ ANY)* }
-string  = @{ "\"" ~ inner ~ "\"" }
+double_quoted_string  = @{ "\"" ~ inner ~ "\"" }
 inner   = @{ (!("\"" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ inner)? }
 escape  = @{ "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "\\" | "'" | unicode | NEWLINE)? }
 unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} | "U" ~ ASCII_HEX_DIGIT{8} }
 
 single_quoted_string = @{ "'" ~ single_quoted_inner ~ "'" }
 single_quoted_inner  = @{ (!("'" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ single_quoted_inner)? }
+
+string = ${ single_quoted_string | double_quoted_string }
 
 // insignificant whitespace, not repeated
 ws = _{ " " | "\t" }
@@ -88,8 +90,7 @@ from = { ^"from" ~ arg_ws ~ from_image ~ from_alias_outer?  }
 arg_name = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 arg_value = ${ any_whitespace }
 arg_quoted_value = ${ string }
-arg_single_quoted_value = ${ single_quoted_string }
-arg = { ^"arg" ~ arg_ws ~ arg_name ~ ("=" ~ (arg_single_quoted_value | arg_quoted_value | arg_value))? }
+arg = { ^"arg" ~ arg_ws ~ arg_name ~ ("=" ~ (arg_quoted_value | arg_value))? }
 
 label_name = ${ any_equals }
 label_quoted_name = ${ string }
@@ -121,8 +122,7 @@ copy = { ^"copy" ~ (arg_ws ~ copy_flag)* ~ (arg_ws ~ copy_pathspec){2,} }
 env_pair_name = ${ (ASCII_ALPHANUMERIC | "_")+ }
 env_pair_value = ${ any_whitespace }
 env_pair_quoted_value = ${ string }
-env_pair_single_quoted_value = ${ single_quoted_string }
-env_pair = @{ env_pair_name ~ "=" ~ (env_pair_single_quoted_value | env_pair_quoted_value | env_pair_value) }
+env_pair = @{ env_pair_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair)+ }
 env = _{ ^"env" ~ env_pairs }
 

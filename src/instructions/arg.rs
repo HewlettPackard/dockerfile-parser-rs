@@ -47,11 +47,6 @@ impl ArgInstruction {
 
           value = Some((v, Span::from_pair(&field)));
         },
-        Rule::arg_single_quoted_value => {
-          let v = unquote(field.as_str()).context(UnescapeError)?;
-
-          value = Some((v, Span::from_pair(&field)));
-        },
         Rule::arg_value => value = Some((
           field.as_str().to_string(),
           Span::from_pair(&field)

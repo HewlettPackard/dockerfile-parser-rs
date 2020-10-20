@@ -49,11 +49,6 @@ fn parse_env_pair(record: Pair) -> Result<EnvVar> {
 
         value = Some(v)
       },
-      Rule::env_pair_single_quoted_value => {
-        let v = unquote(field.as_str()).context(UnescapeError)?;
-
-        value = Some(v)
-      },
       _ => return Err(unexpected_token(field))
     }
   }
