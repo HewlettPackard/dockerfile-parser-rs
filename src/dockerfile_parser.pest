@@ -124,10 +124,6 @@ env_pair_quoted_value = ${ string }
 env_pair_single_quoted_value = ${ single_quoted_string }
 env_pair = @{ env_pair_name ~ "=" ~ (env_pair_single_quoted_value | env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair)+ }
-//env_single_name = @{ ASCII_ALPHA+ }
-//env_single_value = @{ any_breakable }
-//env_single = { arg_ws ~ env_single_name ~ env_single_value }
-//env = _{ ^"env" ~ (env_pairs | env_single) }
 env = _{ ^"env" ~ env_pairs }
 
 misc_instruction = @{ ASCII_ALPHA+ }
