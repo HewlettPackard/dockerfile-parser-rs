@@ -98,19 +98,20 @@ mod tests {
 
   #[test]
   fn run_multiline_comment() -> Result<()> {
+    // TODO: consider ways to mangle this string less
     assert_eq!(
       parse_single(
         indoc!(r#"
-          run foo \
+          run foo && \
               # hello world
-              bar \
+              bar && \
               baz
         "#),
         Rule::run
       )?,
       RunInstruction::shell(indoc!(r#"
-        foo
-      "#)).into()
+        foo &&     # hello world
+            bar &&     baz"#)).into()
     );
 
     assert_eq!(
