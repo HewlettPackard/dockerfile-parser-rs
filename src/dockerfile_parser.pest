@@ -3,7 +3,7 @@
 // https://github.com/pest-parser/pest/blob/master/grammars/src/grammars/toml.pest
 
 dockerfile = { SOI ~ meta_step ~ (NEWLINE ~ meta_step)* ~ EOI }
-meta_step = _{ ws* ~ (step | comment)? ~ ws* } 
+meta_step = _{ ws* ~ (step | comment)? ~ ws* }
 
 step = _{
   (
@@ -46,12 +46,15 @@ arg_ws_maybe = _{ (ws | ("\\" ~ NEWLINE))* }
 
 // continues consuming input beyond a newline, if the newline is preceeded by an
 // escape (\)
+// TODO: this does undesirable things with comments in RUN, is that avoidable?
+// seems like if we're going to pass comments through we should at least include
+// the newlines
 any_breakable = _{
   (
-    !NEWLINE ~ 
+    !NEWLINE ~
     !("\\" ~ NEWLINE) ~
     ANY
-  )* ~ ("\\" ~ NEWLINE ~ any_breakable)?
+  )* ~ ("\\" ~ NEWLINE ~ (ws* ~ comment ~ NEWLINE)? ~ any_breakable)?
 }
 
 // consumes any character until the end of the line

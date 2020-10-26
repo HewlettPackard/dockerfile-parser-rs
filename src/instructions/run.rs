@@ -56,6 +56,8 @@ impl<'a> TryFrom<&'a Instruction> for &'a RunInstruction {
 
 #[cfg(test)]
 mod tests {
+  use indoc::indoc;
+
   use super::*;
   use crate::test_util::*;
 
@@ -80,6 +82,35 @@ mod tests {
       parse_single(r#"run echo \
         "hello world""#, Rule::run)?,
       RunInstruction::shell("echo         \"hello world\"").into()
+    );
+
+    assert_eq!(
+      parse_single(r#"run\
+        [\
+        "echo", \
+        "hello world"\
+        ]"#, Rule::run)?,
+      RunInstruction::exec(vec!["echo", "hello world"]).into()
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn run_multiline_comment() -> Result<()> {
+    assert_eq!(
+      parse_single(
+        indoc!(r#"
+          run foo \
+              # hello world
+              bar \
+              baz
+        "#),
+        Rule::run
+      )?,
+      RunInstruction::shell(indoc!(r#"
+        foo
+      "#)).into()
     );
 
     assert_eq!(
