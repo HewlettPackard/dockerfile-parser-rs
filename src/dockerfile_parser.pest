@@ -54,7 +54,7 @@ any_breakable = _{
     !NEWLINE ~
     !("\\" ~ NEWLINE) ~
     ANY
-  )* ~ ("\\" ~ NEWLINE ~ (ws* ~ comment ~ NEWLINE)? ~ any_breakable)?
+  )* ~ ("\\" ~ NEWLINE ~ (ws* ~ comment ~ NEWLINE)* ~ any_breakable)?
 }
 
 // consumes any character until the end of the line

@@ -3,6 +3,7 @@
 extern crate dockerfile_parser;
 
 use dockerfile_parser::*;
+use indoc::indoc;
 
 mod common;
 use common::*;
@@ -45,12 +46,12 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
 
 #[test]
 fn parse_multiline_shell() -> Result<(), dockerfile_parser::Error> {
-  let dockerfile = Dockerfile::parse(r#"
+  let dockerfile = Dockerfile::parse(indoc!(r#"
     RUN apk add --no-cache \
         curl
 
     RUN foo
-  "#)?;
+  "#))?;
 
   assert_eq!(dockerfile.instructions.len(), 2);
 
@@ -58,7 +59,7 @@ fn parse_multiline_shell() -> Result<(), dockerfile_parser::Error> {
   assert_eq!(
     dockerfile.instructions[0],
     Instruction::Run(RunInstruction::Shell(
-      "apk add --no-cache         curl".into()
+      "apk add --no-cache \\\n    curl".into()
     ))
   );
 

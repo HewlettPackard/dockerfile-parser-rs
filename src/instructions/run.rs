@@ -25,9 +25,7 @@ impl RunInstruction {
   }
 
   pub(crate) fn from_shell_record(record: Pair) -> Result<RunInstruction> {
-    Ok(RunInstruction::Shell(
-      clean_escaped_breaks(record.as_str())
-    ))
+    Ok(RunInstruction::Shell(record.as_str().to_string()))
   }
 
   pub fn shell<S: Into<String>>(s: S) -> RunInstruction {
@@ -79,9 +77,11 @@ mod tests {
   #[test]
   fn run_multiline() -> Result<()> {
     assert_eq!(
-      parse_single(r#"run echo \
-        "hello world""#, Rule::run)?,
-      RunInstruction::shell("echo         \"hello world\"").into()
+      parse_single(indoc!(r#"
+        run echo \
+          "hello world"
+      "#), Rule::run)?,
+      RunInstruction::shell("echo \\\n  \"hello world\"").into()
     );
 
     assert_eq!(
@@ -97,23 +97,75 @@ mod tests {
   }
 
   #[test]
-  fn run_multiline_comment() -> Result<()> {
+  fn run_multiline_shell_comment() -> Result<()> {
     // TODO: consider ways to mangle this string less
     assert_eq!(
       parse_single(
         indoc!(r#"
           run foo && \
-              # hello world
+              # implicitly escaped
               bar && \
+              # explicitly escaped \
               baz
         "#),
         Rule::run
       )?,
       RunInstruction::shell(indoc!(r#"
-        foo &&     # hello world
-            bar &&     baz"#)).into()
+        foo && \
+            # implicitly escaped
+            bar && \
+            # explicitly escaped \
+            baz"#)).into()
     );
 
+    assert_eq!(
+      parse_single(r#"run\
+        [\
+        "echo", \
+        "hello world"\
+        ]"#, Rule::run)?,
+      RunInstruction::exec(vec!["echo", "hello world"]).into()
+    );
+
+    assert_eq!(
+      parse_single(
+        indoc!(r#"
+          run set -x && \
+              # lorem ipsum
+              echo "hello world" && \
+              # dolor sit amet,
+              # consectetur \
+              # adipiscing elit, \
+              # sed do eiusmod
+              # tempor incididunt ut labore
+              echo foo && \
+              echo 'bar' \
+              && echo baz \
+              # et dolore magna aliqua.
+        "#),
+        Rule::run
+      )?,
+      RunInstruction::shell(indoc!(r#"
+        set -x && \
+            # lorem ipsum
+            echo "hello world" && \
+            # dolor sit amet,
+            # consectetur \
+            # adipiscing elit, \
+            # sed do eiusmod
+            # tempor incididunt ut labore
+            echo foo && \
+            echo 'bar' \
+            && echo baz \
+            # et dolore magna aliqua.
+      "#)).into()
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_multiline_exec_comment() -> Result<()> {
     assert_eq!(
       parse_single(r#"run\
         [\
