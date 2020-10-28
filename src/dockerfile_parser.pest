@@ -3,7 +3,7 @@
 // https://github.com/pest-parser/pest/blob/master/grammars/src/grammars/toml.pest
 
 dockerfile = { SOI ~ meta_step ~ (NEWLINE ~ meta_step)* ~ EOI }
-meta_step = _{ ws* ~ (step | comment)? ~ ws* } 
+meta_step = _{ ws* ~ (step | comment)? ~ ws* }
 
 step = _{
   (
@@ -30,10 +30,15 @@ step = _{
 }
 
 comment = _{ "#" ~ (!NEWLINE ~ ANY)* }
-string  = @{ "\"" ~ inner ~ "\"" }
+double_quoted_string  = @{ "\"" ~ inner ~ "\"" }
 inner   = @{ (!("\"" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ inner)? }
-escape  = @{ "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "\\" | unicode | NEWLINE)? }
+escape  = @{ "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "\\" | "'" | unicode | NEWLINE)? }
 unicode = @{ "u" ~ ASCII_HEX_DIGIT{4} | "U" ~ ASCII_HEX_DIGIT{8} }
+
+single_quoted_string = @{ "'" ~ single_quoted_inner ~ "'" }
+single_quoted_inner  = @{ (!("'" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ single_quoted_inner)? }
+
+string = ${ single_quoted_string | double_quoted_string }
 
 // insignificant whitespace, not repeated
 ws = _{ " " | "\t" }
@@ -48,7 +53,7 @@ arg_ws_maybe = _{ (ws | ("\\" ~ NEWLINE))* }
 // escape (\)
 any_breakable = _{
   (
-    !NEWLINE ~ 
+    !NEWLINE ~
     !("\\" ~ NEWLINE) ~
     ANY
   )* ~ ("\\" ~ NEWLINE ~ any_breakable)?
@@ -119,10 +124,7 @@ env_pair_value = ${ any_whitespace }
 env_pair_quoted_value = ${ string }
 env_pair = @{ env_pair_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair)+ }
-env_single_name = @{ ASCII_ALPHA+ }
-env_single_value = @{ any_breakable }
-env_single = {  arg_ws ~ env_single_name ~ env_single_value }
-env = _{ ^"env" ~ (env_pairs | env_single) }
+env = _{ ^"env" ~ env_pairs }
 
 misc_instruction = @{ ASCII_ALPHA+ }
 misc_arguments = @{ any_breakable }

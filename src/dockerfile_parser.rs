@@ -89,7 +89,6 @@ impl TryFrom<Pair<'_>> for Instruction {
 
       Rule::copy => Instruction::Copy(CopyInstruction::from_record(record)?),
 
-      Rule::env_single => EnvInstruction::from_single_record(record)?.into(),
       Rule::env_pairs => EnvInstruction::from_pairs_record(record)?.into(),
 
       Rule::misc => MiscInstruction::from_record(record)?.into(),
