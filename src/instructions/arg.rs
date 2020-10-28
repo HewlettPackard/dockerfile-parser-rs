@@ -46,7 +46,7 @@ impl ArgInstruction {
           let v = unquote(field.as_str()).context(UnescapeError)?;
 
           value = Some((v, Span::from_pair(&field)));
-        }
+        },
         Rule::arg_value => value = Some((
           field.as_str().to_string(),
           Span::from_pair(&field)
@@ -90,4 +90,52 @@ impl<'a> TryFrom<&'a Instruction> for &'a ArgInstruction {
      })
    }
  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::Dockerfile;
+  use crate::test_util::*;
+
+  #[test]
+  fn arg_strings() -> Result<()> {
+    assert_eq!(
+      parse_single(r#"arg foo=bar"#, Rule::arg)?,
+      ArgInstruction {
+        span: Span::new(0, 11),
+        name: "foo".into(),
+        name_span: Span::new(4, 7),
+        value: Some("bar".into()),
+        value_span: Some(Span::new(8, 11)),
+      }.into()
+    );
+
+    assert_eq!(
+      parse_single(r#"arg foo="bar""#, Rule::arg)?,
+      ArgInstruction {
+        span: Span::new(0, 13),
+        name: "foo".into(),
+        name_span: Span::new(4, 7),
+        value: Some("bar".into()),
+        value_span: Some(Span::new(8, 13)),
+      }.into()
+    );
+
+    assert_eq!(
+      parse_single(r#"arg foo='bar'"#, Rule::arg)?,
+      ArgInstruction {
+        span: Span::new(0, 13),
+        name: "foo".into(),
+        name_span: Span::new(4, 7),
+        value: Some("bar".into()),
+        value_span: Some(Span::new(8, 13)),
+      }.into()
+    );
+
+    assert!(Dockerfile::parse(r#"arg foo="bar"bar"#).is_err());
+    assert!(Dockerfile::parse(r#"arg foo='bar'bar"#).is_err());
+
+    Ok(())
+  }
 }
