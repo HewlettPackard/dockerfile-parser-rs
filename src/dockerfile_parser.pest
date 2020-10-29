@@ -44,7 +44,7 @@ string = ${ single_quoted_string | double_quoted_string }
 ws = _{ " " | "\t" }
 
 // a line continuation, allowing an instruction to continue onto a new line
-line_continuation = _{ "\\" ~ NEWLINE }
+line_continuation = _{ "\\" ~ ws* ~ NEWLINE }
 
 // whitespace that may appear between instruction arguments
 // this allows instructions to expand past a newline if escaped

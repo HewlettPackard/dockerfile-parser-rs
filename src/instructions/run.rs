@@ -138,6 +138,16 @@ mod tests {
       "echo   \"hello world\""
     );
 
+    // whitespace should be allowed, but my editor removes trailing whitespace
+    // :)
+    assert_eq!(
+      parse_single("run echo \\    \t  \t\t\n  \"hello world\"", Rule::run)?
+        .as_run().unwrap()
+        .as_shell().unwrap()
+        .to_string(),
+      "echo   \"hello world\""
+    );
+
     Ok(())
   }
 
