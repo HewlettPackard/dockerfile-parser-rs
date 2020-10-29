@@ -210,9 +210,11 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
       "hello", \
       "world" \
     ]
+
+    run echo 'hello # world'
   "#)?;
 
-  assert_eq!(dockerfile.instructions.len(), 7);
+  assert_eq!(dockerfile.instructions.len(), 8);
 
   assert_eq!(
     &dockerfile.instructions[4]
@@ -235,6 +237,14 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
       .as_run().unwrap()
       .as_exec().unwrap(),
     &vec!["echo", "hello", "world"]
+  );
+
+  assert_eq!(
+    dockerfile.instructions[7]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "echo 'hello # world'"
   );
 
   Ok(())
