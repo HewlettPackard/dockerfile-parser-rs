@@ -37,8 +37,11 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[1],
-    Instruction::Run(RunInstruction::Shell("apk add --no-cache curl".into()))
+    &dockerfile.instructions[1]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "apk add --no-cache curl"
   );
 
   Ok(())
@@ -57,15 +60,19 @@ fn parse_multiline_shell() -> Result<(), dockerfile_parser::Error> {
 
   // note: 9 spaces due to 1 before the \ + 8 for indent
   assert_eq!(
-    dockerfile.instructions[0],
-    Instruction::Run(RunInstruction::Shell(
-      "apk add --no-cache \\\n    curl".into()
-    ))
+    &dockerfile.instructions[0]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "apk add --no-cache     curl"
   );
 
   assert_eq!(
-    dockerfile.instructions[1],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[1]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
 
   Ok(())
@@ -93,8 +100,11 @@ fn parse_multiline_exec() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[1],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[1]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
 
   Ok(())
@@ -118,10 +128,11 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
   assert_eq!(dockerfile.instructions.len(), 5);
 
   assert_eq!(
-    dockerfile.instructions[0],
-    Instruction::Label(LabelInstruction(vec![
+    dockerfile.instructions[0]
+      .as_label().unwrap(),
+    &LabelInstruction(vec![
       Label::new("foo", "bar")
-    ]))
+    ])
   );
 
   assert_eq!(
@@ -146,8 +157,11 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[4],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[4]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
 
   Ok(())
@@ -180,8 +194,11 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
   assert_eq!(dockerfile.instructions.len(), 5);
 
   assert_eq!(
-    dockerfile.instructions[4],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[4]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
 
   Ok(())
