@@ -118,7 +118,10 @@ label_quoted_value = ${ string }
 label_pair = {
   (label_quoted_name | label_name) ~ "=" ~ (label_quoted_value | label_value)
 }
-label = { ^"label" ~ (arg_ws ~ label_pair?)+ }
+label_single_name = { any_equals }
+label_single_quoted_name = { string }
+label_single = { arg_ws ~ (label_single_quoted_name | label_single_name) ~ arg_ws ~ (label_quoted_value | label_value) }
+label = { ^"label" ~ (label_single | (arg_ws ~ label_pair?)+) }
 
 run_shell = @{ any_breakable }
 run_exec = { string_array }

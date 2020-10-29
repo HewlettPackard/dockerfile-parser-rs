@@ -33,8 +33,8 @@ impl Label {
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::label_name => name = Some(field.as_str().to_string()),
-        Rule::label_quoted_name => {
+        Rule::label_name | Rule::label_single_name => name = Some(field.as_str().to_string()),
+        Rule::label_quoted_name | Rule::label_single_quoted_name => {
           // label seems to be uniquely able to span multiple lines when quoted
           let v = unquote(&clean_escaped_breaks(field.as_str()))
             .context(UnescapeError)?;
@@ -81,6 +81,7 @@ impl LabelInstruction {
     for field in record.into_inner() {
       match field.as_rule() {
         Rule::label_pair => labels.push(Label::from_record(field)?),
+        Rule::label_single => labels.push(Label::from_record(field)?),
         Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
@@ -130,6 +131,20 @@ mod tests {
 
     assert_eq!(
       parse_single(r#"label "foo.bar"="baz qux""#, Rule::label)?,
+      LabelInstruction(vec![
+        Label::new("foo.bar", "baz qux")
+      ]).into()
+    );
+
+    // this is undocumented but supported :(
+    assert_eq!(
+      parse_single(r#"label foo.bar baz"#, Rule::label)?,
+      LabelInstruction(vec![
+        Label::new("foo.bar", "baz")
+      ]).into()
+    );
+    assert_eq!(
+      parse_single(r#"label "foo.bar" "baz qux""#, Rule::label)?,
       LabelInstruction(vec![
         Label::new("foo.bar", "baz qux")
       ]).into()

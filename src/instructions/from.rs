@@ -164,8 +164,6 @@ mod tests {
       |p| FromInstruction::from_record(p, 0)
     )?;
 
-    println!("from: {:?}", &from);
-
     assert_eq!(from, FromInstruction {
       span: Span { start: 0, end: 68 },
       index: 0,
