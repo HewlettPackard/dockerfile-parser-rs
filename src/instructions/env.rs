@@ -51,7 +51,7 @@ fn parse_env_pair(record: Pair) -> Result<EnvVar> {
 
   for field in record.into_inner() {
     match field.as_rule() {
-      Rule::env_pair_name => key = Some(field.as_str()),
+      Rule::env_name => key = Some(field.as_str()),
       Rule::env_pair_value => {
         value = Some(
           BreakableString::new(&field).add_string(&field, field.as_str())
@@ -110,8 +110,15 @@ impl EnvInstruction {
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::env_single_name => key = Some(field.as_str()),
+        Rule::env_name => key = Some(field.as_str()),
         Rule::env_single_value => value = Some(parse_any_breakable(field)?),
+        Rule::env_single_quoted_value => {
+          let v = unquote(field.as_str()).context(UnescapeError)?;
+
+          value = Some(
+            BreakableString::new(&field).add_string(&field, v)
+          );
+        },
         Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
@@ -160,8 +167,13 @@ mod tests {
     );
 
     assert_eq!(
-      parse_single(r#"env foo="bar""#, Rule::env)?,
-      EnvInstruction(vec![EnvVar::new("foo", ((8, 13), "bar"))]).into()
+      parse_single(r#"env FOO_BAR="baz""#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("FOO_BAR", ((12, 17), "baz"))]).into()
+    );
+
+    assert_eq!(
+      parse_single(r#"env FOO_BAR "baz""#, Rule::env)?,
+      EnvInstruction(vec![EnvVar::new("FOO_BAR", ((12, 17), "baz"))]).into()
     );
 
     assert_eq!(
