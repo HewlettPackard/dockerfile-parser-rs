@@ -17,7 +17,7 @@ use crate::parser::*;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MiscInstruction {
   instruction: String,
-  arguments: String
+  arguments: BreakableString
 }
 
 impl MiscInstruction {
@@ -28,7 +28,7 @@ impl MiscInstruction {
     for field in record.into_inner() {
       match field.as_rule() {
         Rule::misc_instruction => instruction = Some(field.as_str()),
-        Rule::misc_arguments => arguments = Some(field.as_str()),
+        Rule::misc_arguments => arguments = Some(parse_any_breakable(field)?),
         _ => return Err(unexpected_token(field))
       }
     }
@@ -37,9 +37,9 @@ impl MiscInstruction {
       message: "generic instructions require a name".into()
     })?.to_string();
 
-    let arguments = clean_escaped_breaks(arguments.ok_or_else(|| Error::GenericParseError {
+    let arguments = arguments.ok_or_else(|| Error::GenericParseError {
       message: "generic instructions require arguments".into()
-    })?);
+    })?;
 
     Ok(MiscInstruction {
       instruction, arguments

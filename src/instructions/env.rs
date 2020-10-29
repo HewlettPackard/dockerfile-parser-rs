@@ -30,7 +30,7 @@ impl EnvVar {
 ///
 /// [env]: https://docs.docker.com/engine/reference/builder/#env
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct EnvInstruction(Vec<EnvVar>);
+pub struct EnvInstruction(pub Vec<EnvVar>);
 
 impl From<EnvVar> for EnvInstruction {
   fn from(var: EnvVar) -> Self {
@@ -96,6 +96,7 @@ impl EnvInstruction {
     for field in record.into_inner() {
       match field.as_rule() {
         Rule::env_pair => vars.push(parse_env_pair(field)?),
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }
@@ -111,6 +112,7 @@ impl EnvInstruction {
       match field.as_rule() {
         Rule::env_single_name => key = Some(field.as_str()),
         Rule::env_single_value => value = Some(parse_any_breakable(field)?),
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }
@@ -193,6 +195,29 @@ mod tests {
   }
 
   #[test]
+  fn test_multiline_pairs() -> Result<()> {
+    // note: docker allows empty line continuations (but may print a warning)
+    assert_eq!(
+      parse_single(
+        indoc!(r#"
+          env foo=a \
+            bar=b \
+            baz=c \
+
+        "#),
+        Rule::env
+      )?.into_env().unwrap().0,
+      vec![
+        EnvVar::new("foo", ((8, 9), "a")),
+        EnvVar::new("bar", ((18, 19), "b")),
+        EnvVar::new("baz", ((28, 29), "c"))
+      ]
+    );
+
+    Ok(())
+  }
+
+  #[test]
   fn test_multiline_single_env() -> Result<()> {
     assert_eq!(
       parse_single(
@@ -247,9 +272,8 @@ mod tests {
         Rule::env
       )?.into_env().unwrap().0,
       vec![
-        EnvVar::new("foo", BreakableString::new((16, 91))
-          .add_comment((16, 21), "# bar")
-          .add_string((22, 52), "  Lorem ipsum dolor sit amet, ")
+        EnvVar::new("foo", BreakableString::new((24, 91))
+          .add_string((24, 52), "Lorem ipsum dolor sit amet, ")
           .add_comment((56, 61), "# baz")
           .add_string((62, 91), "  consectetur adipiscing elit")
         )

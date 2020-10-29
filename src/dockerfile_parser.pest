@@ -29,7 +29,13 @@ step = _{
   )
 }
 
+// insignificant whitespace, not repeated
+ws = _{ " " | "\t" }
+
 comment = @{ "#" ~ (!NEWLINE ~ ANY)* }
+comment_line = _{ ws* ~ comment ~ NEWLINE? }
+empty_line = _{ ws* ~ NEWLINE }
+
 double_quoted_string  = @{ "\"" ~ inner ~ "\"" }
 inner   = @{ (!("\"" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ inner)? }
 escape  = @{ "\\" ~ ("b" | "t" | "n" | "f" | "r" | "\"" | "\\" | "'" | unicode | NEWLINE)? }
@@ -40,24 +46,20 @@ single_quoted_inner  = @{ (!("'" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (es
 
 string = ${ single_quoted_string | double_quoted_string }
 
-// insignificant whitespace, not repeated
-ws = _{ " " | "\t" }
-
 // a line continuation, allowing an instruction to continue onto a new line
 line_continuation = _{ "\\" ~ ws* ~ NEWLINE }
 
 // whitespace that may appear between instruction arguments
 // this allows instructions to expand past a newline if escaped
-arg_ws = _{ (ws | line_continuation)+ }
+arg_ws = _{ (ws | line_continuation ~ (comment_line | empty_line)*)+ }
 
 // like arg_ws, but where whitespace is optional
-arg_ws_maybe = _{ (ws | line_continuation)* }
+arg_ws_maybe = _{ (ws | line_continuation ~ (comment_line | empty_line)*)* }
 
 // continues consuming input beyond a newline, if the newline is preceeded by an
 // escape (\)
 // these tokens need to be preserved in the final tree so they can be handled
 // appropraitely; pest's ignore rules aren't sufficient for our needs
-comment_line = _{ ws* ~ comment ~ NEWLINE? }
 any_content = @{
   (
     !NEWLINE ~
@@ -116,7 +118,7 @@ label_quoted_value = ${ string }
 label_pair = {
   (label_quoted_name | label_name) ~ "=" ~ (label_quoted_value | label_value)
 }
-label = { ^"label" ~ (arg_ws ~ label_pair)+ }
+label = { ^"label" ~ (arg_ws ~ label_pair?)+ }
 
 run_shell = @{ any_breakable }
 run_exec = { string_array }
@@ -140,7 +142,7 @@ env_pair_name = ${ (ASCII_ALPHANUMERIC | "_")+ }
 env_pair_value = ${ any_whitespace }
 env_pair_quoted_value = ${ string }
 env_pair = @{ env_pair_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
-env_pairs = { (arg_ws ~ env_pair)+ }
+env_pairs = { (arg_ws ~ env_pair?)+ }
 env_single_name = @{ ASCII_ALPHA+ }
 env_single_value = @{ any_breakable }
 env_single = {  arg_ws ~ env_single_name ~ arg_ws ~ env_single_value }

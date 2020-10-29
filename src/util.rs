@@ -21,6 +21,7 @@ pub(crate) fn parse_string_array(array: Pair) -> Result<Vec<String>> {
 
         ret.push(s);
       },
+      Rule::comment => continue,
       _ => return Err(unexpected_token(field))
     }
   }

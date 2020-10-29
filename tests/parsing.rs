@@ -164,6 +164,14 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
     "foo"
   );
 
+  // ambiguous line continuation is an error
+  assert!(Dockerfile::parse(r#"
+    LABEL foo="bar\
+          baz"\
+
+    RUN foo
+  "#).is_err());
+
   Ok(())
 }
 
@@ -189,9 +197,22 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
     # ullamco laboris nisi
 
     RUN foo
+
+    ENV foo=a \
+      # test comment
+
+
+      bar=b
+
+    run [ \
+      "echo", \
+      # hello world
+      "hello", \
+      "world" \
+    ]
   "#)?;
 
-  assert_eq!(dockerfile.instructions.len(), 5);
+  assert_eq!(dockerfile.instructions.len(), 7);
 
   assert_eq!(
     &dockerfile.instructions[4]
@@ -199,6 +220,21 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
       .as_shell().unwrap()
       .to_string(),
     "foo"
+  );
+
+  assert_eq!(
+    dockerfile.instructions[5].as_env().unwrap().0,
+    vec![
+      EnvVar::new("foo", ((400, 401), "a")),
+      EnvVar::new("bar", ((437, 438), "b")),
+    ]
+  );
+
+  assert_eq!(
+    dockerfile.instructions[6]
+      .as_run().unwrap()
+      .as_exec().unwrap(),
+    &vec!["echo", "hello", "world"]
   );
 
   Ok(())

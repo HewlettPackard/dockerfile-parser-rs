@@ -75,6 +75,7 @@ impl CopyInstruction {
       match field.as_rule() {
         Rule::copy_flag => flags.push(CopyFlag::from_record(field)?),
         Rule::copy_pathspec => paths.push(field.as_str().to_string()),
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }
@@ -115,6 +116,8 @@ impl<'a> TryFrom<&'a Instruction> for &'a CopyInstruction {
 
 #[cfg(test)]
 mod tests {
+  use indoc::indoc;
+
   use super::*;
   use crate::test_util::*;
 
@@ -186,6 +189,41 @@ mod tests {
             name_span: Span { start: 7, end: 11 },
             value: "alpine:3.10".into(),
             value_span: Span { start: 12, end: 23 }
+          }
+        ],
+        sources: strings(&["/usr/lib/libssl.so.1.1"]),
+        destination: "/tmp/".into(),
+      }.into()
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn copy_comments() -> Result<()> {
+    assert_eq!(
+      parse_single(
+        indoc!(r#"
+          copy \
+            --from=alpine:3.10 \
+
+            # hello
+
+            /usr/lib/libssl.so.1.1 \
+            # world
+            /tmp/
+        "#),
+        Rule::copy
+      )?.into_copy().unwrap(),
+      CopyInstruction {
+        span: Span { start: 0, end: 86 },
+        flags: vec![
+          CopyFlag {
+            span: Span { start: 9, end: 27 },
+            name: "from".into(),
+            name_span: Span { start: 11, end: 15 },
+            value: "alpine:3.10".into(),
+            value_span: Span { start: 16, end: 27 }
           }
         ],
         sources: strings(&["/usr/lib/libssl.so.1.1"]),
