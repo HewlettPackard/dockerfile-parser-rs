@@ -47,6 +47,7 @@ pub use parser::*;
 pub use instructions::*;
 pub use splicer::*;
 pub use stage::*;
+pub use util::*;
 pub use crate::dockerfile_parser::*;
 
 #[cfg(test)] mod test_util;
