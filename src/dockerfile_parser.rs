@@ -45,6 +45,170 @@ pub enum Instruction {
   Misc(MiscInstruction)
 }
 
+impl Instruction {
+  /// Attempts to convert this instruction into a FromInstruction, returning
+  /// None if impossible.
+  pub fn into_from(self) -> Option<FromInstruction> {
+    match self {
+      Instruction::From(f) => Some(f),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a FromInstruction, returning
+  /// None if impossible.
+  pub fn as_from(&self) -> Option<&FromInstruction> {
+    match self {
+      Instruction::From(f) => Some(f),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into an ArgInstruction, returning
+  /// None if impossible.
+  pub fn into_arg(self) -> Option<ArgInstruction> {
+    match self {
+      Instruction::Arg(a) => Some(a),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into an ArgInstruction, returning
+  /// None if impossible.
+  pub fn as_arg(&self) -> Option<&ArgInstruction> {
+    match self {
+      Instruction::Arg(a) => Some(a),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a LabelInstruction, returning
+  /// None if impossible.
+  pub fn into_label(self) -> Option<LabelInstruction> {
+    match self {
+      Instruction::Label(l) => Some(l),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a LabelInstruction, returning
+  /// None if impossible.
+  pub fn as_label(&self) -> Option<&LabelInstruction> {
+    match self {
+      Instruction::Label(l) => Some(l),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a RunInstruction, returning
+  /// None if impossible.
+  pub fn into_run(self) -> Option<RunInstruction> {
+    match self {
+      Instruction::Run(r) => Some(r),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a RunInstruction, returning
+  /// None if impossible.
+  pub fn as_run(&self) -> Option<&RunInstruction> {
+    match self {
+      Instruction::Run(r) => Some(r),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into an EntrypointInstruction,
+  /// returning None if impossible.
+  pub fn into_entrypoint(self) -> Option<EntrypointInstruction> {
+    match self {
+      Instruction::Entrypoint(e) => Some(e),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into an EntrypointInstruction,
+  /// returning None if impossible.
+  pub fn as_entrypoint(&self) -> Option<&EntrypointInstruction> {
+    match self {
+      Instruction::Entrypoint(e) => Some(e),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a CmdInstruction, returning
+  /// None if impossible.
+  pub fn into_cmd(self) -> Option<CmdInstruction> {
+    match self {
+      Instruction::Cmd(c) => Some(c),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a CmdInstruction, returning
+  /// None if impossible.
+  pub fn as_cmd(&self) -> Option<&CmdInstruction> {
+    match self {
+      Instruction::Cmd(c) => Some(c),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a CopyInstruction, returning
+  /// None if impossible.
+  pub fn into_copy(self) -> Option<CopyInstruction> {
+    match self {
+      Instruction::Copy(c) => Some(c),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a CopyInstruction, returning
+  /// None if impossible.
+  pub fn as_copy(&self) -> Option<&CopyInstruction> {
+    match self {
+      Instruction::Copy(c) => Some(c),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into an EnvInstruction, returning
+  /// None if impossible.
+  pub fn into_env(self) -> Option<EnvInstruction> {
+    match self {
+      Instruction::Env(e) => Some(e),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into an EnvInstruction, returning
+  /// None if impossible.
+  pub fn as_env(&self) -> Option<&EnvInstruction> {
+    match self {
+      Instruction::Env(e) => Some(e),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a MiscInstruction, returning
+  /// None if impossible.
+  pub fn into_misc(self) -> Option<MiscInstruction> {
+    match self {
+      Instruction::Misc(m) => Some(m),
+      _ => None,
+    }
+  }
+
+  /// Attempts to convert this instruction into a MiscInstruction, returning
+  /// None if impossible.
+  pub fn as_misc(&self) -> Option<&MiscInstruction> {
+    match self {
+      Instruction::Misc(m) => Some(m),
+      _ => None,
+    }
+  }
+}
+
 /// Maps an instruction struct to its enum variant, implementing From<T> on
 /// Instruction for it.
 macro_rules! impl_from_instruction {
@@ -89,9 +253,13 @@ impl TryFrom<Pair<'_>> for Instruction {
 
       Rule::copy => Instruction::Copy(CopyInstruction::from_record(record)?),
 
+      Rule::env_single => EnvInstruction::from_single_record(record)?.into(),
       Rule::env_pairs => EnvInstruction::from_pairs_record(record)?.into(),
 
       Rule::misc => MiscInstruction::from_record(record)?.into(),
+
+      // TODO: consider exposing comments
+      // Rule::comment => ...,
       _ => return Err(unexpected_token(record))
     };
 
@@ -149,6 +317,11 @@ fn parse_dockerfile(input: &str) -> Result<Dockerfile> {
 
   for record in dockerfile.into_inner() {
     if let Rule::EOI = record.as_rule() {
+      continue;
+    }
+
+    // TODO: consider exposing comments in the parse result
+    if let Rule::comment = record.as_rule() {
       continue;
     }
 

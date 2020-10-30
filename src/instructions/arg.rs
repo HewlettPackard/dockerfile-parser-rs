@@ -51,6 +51,7 @@ impl ArgInstruction {
           field.as_str().to_string(),
           Span::from_pair(&field)
         )),
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }

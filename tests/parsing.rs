@@ -3,6 +3,7 @@
 extern crate dockerfile_parser;
 
 use dockerfile_parser::*;
+use indoc::indoc;
 
 mod common;
 use common::*;
@@ -36,8 +37,11 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[1],
-    Instruction::Run(RunInstruction::Shell("apk add --no-cache curl".into()))
+    &dockerfile.instructions[1]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "apk add --no-cache curl"
   );
 
   Ok(())
@@ -45,26 +49,30 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
 
 #[test]
 fn parse_multiline_shell() -> Result<(), dockerfile_parser::Error> {
-  let dockerfile = Dockerfile::parse(r#"
+  let dockerfile = Dockerfile::parse(indoc!(r#"
     RUN apk add --no-cache \
         curl
 
     RUN foo
-  "#)?;
+  "#))?;
 
   assert_eq!(dockerfile.instructions.len(), 2);
 
   // note: 9 spaces due to 1 before the \ + 8 for indent
   assert_eq!(
-    dockerfile.instructions[0],
-    Instruction::Run(RunInstruction::Shell(
-      "apk add --no-cache         curl".into()
-    ))
+    &dockerfile.instructions[0]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "apk add --no-cache     curl"
   );
 
   assert_eq!(
-    dockerfile.instructions[1],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[1]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
 
   Ok(())
@@ -92,8 +100,11 @@ fn parse_multiline_exec() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[1],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[1]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
 
   Ok(())
@@ -117,10 +128,11 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
   assert_eq!(dockerfile.instructions.len(), 5);
 
   assert_eq!(
-    dockerfile.instructions[0],
-    Instruction::Label(LabelInstruction(vec![
+    dockerfile.instructions[0]
+      .as_label().unwrap(),
+    &LabelInstruction(vec![
       Label::new("foo", "bar")
-    ]))
+    ])
   );
 
   assert_eq!(
@@ -145,9 +157,20 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[4],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[4]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
   );
+
+  // ambiguous line continuation is an error
+  assert!(Dockerfile::parse(r#"
+    LABEL foo="bar\
+          baz"\
+
+    RUN foo
+  "#).is_err());
 
   Ok(())
 }
@@ -174,13 +197,54 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
     # ullamco laboris nisi
 
     RUN foo
+
+    ENV foo=a \
+      # test comment
+
+
+      bar=b
+
+    run [ \
+      "echo", \
+      # hello world
+      "hello", \
+      "world" \
+    ]
+
+    run echo 'hello # world'
   "#)?;
 
-  assert_eq!(dockerfile.instructions.len(), 5);
+  assert_eq!(dockerfile.instructions.len(), 8);
 
   assert_eq!(
-    dockerfile.instructions[4],
-    Instruction::Run(RunInstruction::Shell("foo".into()))
+    &dockerfile.instructions[4]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "foo"
+  );
+
+  assert_eq!(
+    dockerfile.instructions[5].as_env().unwrap().0,
+    vec![
+      EnvVar::new("foo", ((400, 401), "a")),
+      EnvVar::new("bar", ((437, 438), "b")),
+    ]
+  );
+
+  assert_eq!(
+    dockerfile.instructions[6]
+      .as_run().unwrap()
+      .as_exec().unwrap(),
+    &vec!["echo", "hello", "world"]
+  );
+
+  assert_eq!(
+    dockerfile.instructions[7]
+      .as_run().unwrap()
+      .as_shell().unwrap()
+      .to_string(),
+    "echo 'hello # world'"
   );
 
   Ok(())

@@ -36,6 +36,7 @@ impl FromInstruction {
       match field.as_rule() {
         Rule::from_image => image_field = Some(field),
         Rule::from_alias => alias_field = Some(field),
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       };
     }
@@ -89,6 +90,8 @@ impl<'a> TryFrom<&'a Instruction> for &'a FromInstruction {
 
 #[cfg(test)]
 mod tests {
+  use indoc::indoc;
+
   use super::*;
   use crate::test_util::*;
 
@@ -138,6 +141,43 @@ mod tests {
       "from alpine:3.10 as",
       Rule::dockerfile,
     ).is_err());
+
+    Ok(())
+  }
+
+  #[test]
+  fn from_multiline() -> Result<()> {
+    let from = parse_direct(
+      indoc!(r#"
+        from \
+          # foo
+          alpine:3.10 \
+
+          # test
+          # comment
+
+          as \
+
+          test
+      "#),
+      Rule::from,
+      |p| FromInstruction::from_record(p, 0)
+    )?;
+
+    assert_eq!(from, FromInstruction {
+      span: Span { start: 0, end: 68 },
+      index: 0,
+      image: "alpine:3.10".into(),
+      image_span: Span { start: 17, end: 28 },
+      image_parsed: ImageRef {
+        registry: None,
+        image: "alpine".into(),
+        tag: Some("3.10".into()),
+        hash: None
+      },
+      alias: Some("test".into()),
+      alias_span: Some((64, 68).into())
+    });
 
     Ok(())
   }

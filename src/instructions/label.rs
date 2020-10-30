@@ -33,8 +33,8 @@ impl Label {
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::label_name => name = Some(field.as_str().to_string()),
-        Rule::label_quoted_name => {
+        Rule::label_name | Rule::label_single_name => name = Some(field.as_str().to_string()),
+        Rule::label_quoted_name | Rule::label_single_quoted_name => {
           // label seems to be uniquely able to span multiple lines when quoted
           let v = unquote(&clean_escaped_breaks(field.as_str()))
             .context(UnescapeError)?;
@@ -49,6 +49,7 @@ impl Label {
 
           value = Some(v);
         },
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }
@@ -80,6 +81,8 @@ impl LabelInstruction {
     for field in record.into_inner() {
       match field.as_rule() {
         Rule::label_pair => labels.push(Label::from_record(field)?),
+        Rule::label_single => labels.push(Label::from_record(field)?),
+        Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }
@@ -105,6 +108,8 @@ impl<'a> TryFrom<&'a Instruction> for &'a LabelInstruction {
 
 #[cfg(test)]
 mod tests {
+  use indoc::indoc;
+
   use super::*;
   use crate::test_util::*;
 
@@ -126,6 +131,20 @@ mod tests {
 
     assert_eq!(
       parse_single(r#"label "foo.bar"="baz qux""#, Rule::label)?,
+      LabelInstruction(vec![
+        Label::new("foo.bar", "baz qux")
+      ]).into()
+    );
+
+    // this is undocumented but supported :(
+    assert_eq!(
+      parse_single(r#"label foo.bar baz"#, Rule::label)?,
+      LabelInstruction(vec![
+        Label::new("foo.bar", "baz")
+      ]).into()
+    );
+    assert_eq!(
+      parse_single(r#"label "foo.bar" "baz qux""#, Rule::label)?,
       LabelInstruction(vec![
         Label::new("foo.bar", "baz qux")
       ]).into()
@@ -198,6 +217,29 @@ mod tests {
         Label::new("lorem ipsum\n          dolor\n          ", "sit\n          amet"),
         Label::new("baz", "qux")
       ]).into()
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn label_multiline_improper_continuation() -> Result<()> {
+    // note: docker allows empty line continuations (but may print a warning)
+    assert_eq!(
+      parse_single(
+        indoc!(r#"
+          label foo=a \
+            bar=b \
+            baz=c \
+
+        "#),
+        Rule::label
+      )?.into_label().unwrap().0,
+      vec![
+        Label::new("foo", "a"),
+        Label::new("bar", "b"),
+        Label::new("baz", "c"),
+      ]
     );
 
     Ok(())
