@@ -101,7 +101,7 @@ string_array = _{
   ) | "[" ~ arg_ws_maybe ~ "]"
 }
 
-from_image = @{ (ASCII_ALPHANUMERIC | "_" | "-" | "." | ":" | "/" | "$" | "{" | "}")+ }
+from_image = @{ (ASCII_ALPHANUMERIC | "_" | "-" | "." | ":" | "/" | "$" | "{" | "}" | "@")+ }
 from_alias = { identifier_whitespace }
 from_alias_outer = _{ arg_ws ~ ^"as" ~ arg_ws ~ from_alias }
 from = { ^"from" ~ arg_ws ~ from_image ~ from_alias_outer?  }

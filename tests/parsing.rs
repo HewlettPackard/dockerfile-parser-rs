@@ -249,3 +249,32 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
 
   Ok(())
 }
+
+#[test]
+fn parse_from_hash() -> Result<(), dockerfile_parser::Error> {
+  let dockerfile = Dockerfile::parse(r#"
+    FROM alpine@sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7 as foo
+  "#)?;
+
+  assert_eq!(dockerfile.instructions.len(), 1);
+
+  assert_eq!(
+    dockerfile.instructions[0].as_from().unwrap(),
+    &FromInstruction {
+      index: 0,
+      span: (5, 95).into(),
+      image: "alpine@sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7".into(),
+      image_span: (10, 88).into(),
+      image_parsed: ImageRef {
+        registry: None,
+        image: "alpine".into(),
+        tag: None,
+        hash: Some("sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7".into()),
+      },
+      alias: Some("foo".into()),
+      alias_span: Some((92, 95).into())
+    }
+  );
+
+  Ok(())
+}
