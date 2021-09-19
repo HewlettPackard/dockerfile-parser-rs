@@ -156,8 +156,8 @@ impl ImageRef {
     let vars: HashMap<&'a str, &'a str> = HashMap::from_iter(
       dockerfile.global_args
         .iter()
-        .filter_map(|a| match a.value.as_deref() {
-          Some(v) => Some((a.name.as_str(), v)),
+        .filter_map(|a| match a.value.as_ref() {
+          Some(v) => Some((a.name.as_str(), v.as_str())),
           None => None
         })
     );

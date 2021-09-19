@@ -11,22 +11,39 @@ use snafu::ResultExt;
 
 /// Given a node ostensibly containing a string array, returns an unescaped
 /// array of strings
-pub(crate) fn parse_string_array(array: Pair) -> Result<Vec<String>> {
-  let mut ret = Vec::new();
+pub(crate) fn parse_string_array(array: Pair) -> Result<StringArray> {
+  let span = Span::from_pair(&array);
+  let mut elements = Vec::new();
 
   for field in array.into_inner() {
     match field.as_rule() {
       Rule::string => {
-        let s = unquote(field.as_str()).context(UnescapeError)?;
-
-        ret.push(s);
+        elements.push(parse_string(&field)?);
       },
       Rule::comment => continue,
       _ => return Err(unexpected_token(field))
     }
   }
 
-  Ok(ret)
+  Ok(StringArray {
+    span,
+    elements,
+  })
+}
+
+pub(crate) fn parse_string(field: &Pair) -> Result<SpannedString> {
+  let str_span = Span::from_pair(field);
+  let field_str = field.as_str();
+  let content = if matches!(field_str.chars().next(), Some('"' | '\'' | '`')) {
+    unquote(field_str).context(UnescapeError)?
+  } else {
+    field_str.to_string()
+  };
+
+  Ok(SpannedString {
+    span: str_span,
+    content,
+  })
 }
 
 /// Removes escaped line breaks (\\\n) from a string
@@ -34,6 +51,67 @@ pub(crate) fn parse_string_array(array: Pair) -> Result<Vec<String>> {
 /// This should be used to clean any input from the any_breakable rule
 pub(crate) fn clean_escaped_breaks(s: &str) -> String {
   s.replace("\\\n", "")
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ShellOrExecExpr {
+  Shell(BreakableString),
+  Exec(StringArray),
+}
+
+impl ShellOrExecExpr {
+  /// Unpacks this expression into its inner value if it is a Shell-form
+  /// instruction, otherwise returns None.
+  pub fn into_shell(self) -> Option<BreakableString> {
+    if let ShellOrExecExpr::Shell(s) = self {
+      Some(s)
+    } else {
+      None
+    }
+  }
+
+  /// Unpacks this expression into its inner value if it is a Shell-form
+  /// instruction, otherwise returns None.
+  pub fn as_shell(&self) -> Option<&BreakableString> {
+    if let ShellOrExecExpr::Shell(s) = self {
+      Some(s)
+    } else {
+      None
+    }
+  }
+
+  /// Unpacks this expression into its inner value if it is an Exec-form
+  /// instruction, otherwise returns None.
+  pub fn into_exec(self) -> Option<StringArray> {
+    if let ShellOrExecExpr::Exec(s) = self {
+      Some(s)
+    } else {
+      None
+    }
+  }
+
+  /// Unpacks this expression into its inner value if it is an Exec-form
+  /// instruction, otherwise returns None.
+  pub fn as_exec(&self) -> Option<&StringArray> {
+    if let ShellOrExecExpr::Exec(s) = self {
+      Some(s)
+    } else {
+      None
+    }
+  }
+}
+
+/// A string array (ex. ["executable", "param1", "param2"])
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
+pub struct StringArray {
+  pub span: Span,
+  pub elements: Vec<SpannedString>,
+}
+
+impl StringArray {
+  pub fn as_str_vec(&self) -> Vec<&str> {
+    self.elements.iter().map(|c| c.as_str()).collect()
+  }
 }
 
 /// A comment with a character span.
@@ -48,6 +126,12 @@ pub struct SpannedComment {
 pub struct SpannedString {
   pub span: Span,
   pub content: String,
+}
+
+impl SpannedString {
+  pub fn as_str(&self) -> &str {
+    self.content.as_str()
+  }
 }
 
 /// A component of a breakable string.

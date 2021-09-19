@@ -9,10 +9,6 @@ use crate::dockerfile_parser::Instruction;
 use crate::error::*;
 use crate::parser::{DockerfileParser, Pair, Rule};
 
-pub fn strings(strs: &[&str]) -> Vec<String> {
-  strs.iter().map(|s| String::from(*s)).collect()
-}
-
 /// Parses a string into a single instruction using a particular syntax rule.
 ///
 /// This is technically over-constrained as we could just parse any single
