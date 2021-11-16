@@ -49,7 +49,7 @@ impl FromInstruction {
       });
     };
 
-    let image_parsed = ImageRef::parse(&image.as_str());
+    let image_parsed = ImageRef::parse(&image.as_ref());
 
     let alias = if let Some(alias_field) = alias_field {
       Some(parse_string(&alias_field)?)

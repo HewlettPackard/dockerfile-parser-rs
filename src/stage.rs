@@ -130,7 +130,7 @@ impl<'a> Stages<'a> {
 
     for ins in &dockerfile.instructions {
       if let Instruction::From(from) = ins {
-        let image_name = from.image.as_str().to_ascii_lowercase();
+        let image_name = from.image.as_ref().to_ascii_lowercase();
         let parent = if image_name == "scratch" {
           StageParent::Scratch
         } else if let Some(stage) = stages.get_by_name(&image_name) {
@@ -147,7 +147,7 @@ impl<'a> Stages<'a> {
 
         stages.stages.push(Stage {
           index: next_stage_index,
-          name: from.alias.as_ref().map(|a| a.as_str().to_ascii_lowercase()),
+          name: from.alias.as_ref().map(|a| a.as_ref().to_ascii_lowercase()),
           instructions: vec![ins],
           parent,
           root

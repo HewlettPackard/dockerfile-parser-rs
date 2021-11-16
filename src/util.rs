@@ -53,6 +53,7 @@ pub(crate) fn clean_escaped_breaks(s: &str) -> String {
   s.replace("\\\n", "")
 }
 
+/// A string that may be broken across many lines or an array of strings.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ShellOrExecExpr {
   Shell(BreakableString),
@@ -110,7 +111,7 @@ pub struct StringArray {
 
 impl StringArray {
   pub fn as_str_vec(&self) -> Vec<&str> {
-    self.elements.iter().map(|c| c.as_str()).collect()
+    self.elements.iter().map(|c| c.as_ref()).collect()
   }
 }
 
@@ -128,9 +129,15 @@ pub struct SpannedString {
   pub content: String,
 }
 
-impl SpannedString {
-  pub fn as_str(&self) -> &str {
-    self.content.as_str()
+impl AsRef<str> for SpannedString {
+  fn as_ref(&self) -> &str {
+    &self.content
+  }
+}
+
+impl fmt::Display for SpannedString {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.content.fmt(f)
   }
 }
 

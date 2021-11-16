@@ -157,7 +157,7 @@ impl ImageRef {
       dockerfile.global_args
         .iter()
         .filter_map(|a| match a.value.as_ref() {
-          Some(v) => Some((a.name.as_str(), v.as_str())),
+          Some(v) => Some((a.name.as_ref(), v.as_ref())),
           None => None
         })
     );
