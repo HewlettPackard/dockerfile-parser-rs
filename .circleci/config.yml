@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   test:
     docker:
-      - image: rust:1.42-slim-buster
+      - image: rust:1.56-slim-buster
     steps:
       - checkout
       - run:
@@ -19,7 +19,7 @@ jobs:
 
   publish:
     docker:
-      - image: rust:1.42-slim-buster
+      - image: rust:1.56-slim-buster
     steps:
       - checkout
       - run:

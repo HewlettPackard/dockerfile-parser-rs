@@ -1,0 +1,8 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  open-pull-requests-limit: 25
+  directory: /
+  registries: []
+  schedule:
+    interval: daily
