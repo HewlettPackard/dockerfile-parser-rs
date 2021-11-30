@@ -2,6 +2,7 @@
 
 use std::convert::TryFrom;
 
+use crate::Span;
 use crate::dockerfile_parser::Instruction;
 use crate::error::*;
 use crate::util::*;
@@ -14,62 +15,51 @@ use crate::parser::*;
 ///
 /// [entrypoint]: https://docs.docker.com/engine/reference/builder/#entrypoint
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum EntrypointInstruction {
-  Shell(BreakableString),
-  Exec(Vec<String>)
+pub struct EntrypointInstruction {
+  pub span: Span,
+  pub expr: ShellOrExecExpr,
 }
 
 impl EntrypointInstruction {
-  pub(crate) fn from_exec_record(record: Pair) -> Result<EntrypointInstruction> {
-    Ok(EntrypointInstruction::Exec(parse_string_array(record)?))
-  }
+  pub(crate) fn from_record(record: Pair) -> Result<EntrypointInstruction> {
+    let span = Span::from_pair(&record);
+    let field = record.into_inner().next().unwrap();
 
-  pub(crate) fn from_shell_record(record: Pair) -> Result<EntrypointInstruction> {
-    Ok(EntrypointInstruction::Shell(parse_any_breakable(record)?))
-  }
-
-  pub fn exec<S: Into<String>>(args: Vec<S>) -> EntrypointInstruction {
-    EntrypointInstruction::Exec(args.into_iter().map(|s| s.into()).collect())
+    match field.as_rule() {
+      Rule::entrypoint_exec => Ok(EntrypointInstruction {
+        span,
+        expr: ShellOrExecExpr::Exec(parse_string_array(field)?),
+      }),
+      Rule::entrypoint_shell => Ok(EntrypointInstruction {
+        span,
+        expr: ShellOrExecExpr::Shell(parse_any_breakable(field)?),
+      }),
+      _ => Err(unexpected_token(field)),
+    }
   }
 
   /// Unpacks this instruction into its inner value if it is a Shell-form
   /// instruction, otherwise returns None.
   pub fn into_shell(self) -> Option<BreakableString> {
-    if let EntrypointInstruction::Shell(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+    self.expr.into_shell()
   }
 
   /// Unpacks this instruction into its inner value if it is a Shell-form
   /// instruction, otherwise returns None.
   pub fn as_shell(&self) -> Option<&BreakableString> {
-    if let EntrypointInstruction::Shell(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+    self.expr.as_shell()
   }
 
   /// Unpacks this instruction into its inner value if it is an Exec-form
   /// instruction, otherwise returns None.
-  pub fn into_exec(self) -> Option<Vec<String>> {
-    if let EntrypointInstruction::Exec(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+  pub fn into_exec(self) -> Option<StringArray> {
+    self.expr.into_exec()
   }
 
   /// Unpacks this instruction into its inner value if it is an Exec-form
   /// instruction, otherwise returns None.
-  pub fn as_exec(&self) -> Option<&Vec<String>> {
-    if let EntrypointInstruction::Exec(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+  pub fn as_exec(&self) -> Option<&StringArray> {
+    self.expr.as_exec()
   }
 }
 
@@ -91,8 +81,10 @@ impl TryFrom<Instruction> for EntrypointInstruction {
 #[cfg(test)]
 mod tests {
   use indoc::indoc;
+  use pretty_assertions::assert_eq;
 
   use super::*;
+  use crate::Span;
   use crate::test_util::*;
 
   #[test]
@@ -107,7 +99,19 @@ mod tests {
 
     assert_eq!(
       parse_single(r#"entrypoint ["echo", "hello world"]"#, Rule::entrypoint)?,
-      EntrypointInstruction::exec(vec!["echo", "hello world"]).into()
+      EntrypointInstruction {
+        span: Span::new(0, 34),
+        expr: ShellOrExecExpr::Exec(StringArray {
+          span: Span::new(11, 34),
+          elements: vec![SpannedString {
+            span: Span::new(12, 18),
+            content: "echo".to_string(),
+          }, SpannedString {
+            span: Span::new(20, 33),
+            content: "hello world".to_string(),
+          }]
+        })
+      }.into()
     );
 
     Ok(())
@@ -121,7 +125,19 @@ mod tests {
         "echo", \
         "hello world"\
         ]"#, Rule::entrypoint)?,
-      EntrypointInstruction::exec(vec!["echo", "hello world"]).into()
+      EntrypointInstruction {
+        span: Span::new(0, 73),
+        expr: ShellOrExecExpr::Exec(StringArray {
+          span: Span::new(20, 73),
+          elements: vec![SpannedString {
+            span: Span::new(31, 37),
+            content: "echo".to_string(),
+          }, SpannedString {
+            span: Span::new(49, 62),
+            content: "hello world".to_string(),
+          }]
+        }),
+      }.into()
     );
 
     Ok(())

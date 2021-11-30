@@ -2,6 +2,7 @@
 
 use std::convert::TryFrom;
 
+use crate::Span;
 use crate::dockerfile_parser::Instruction;
 use crate::error::*;
 use crate::util::*;
@@ -14,62 +15,51 @@ use crate::parser::*;
 ///
 /// [run]: https://docs.docker.com/engine/reference/builder/#run
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum RunInstruction {
-  Shell(BreakableString),
-  Exec(Vec<String>)
+pub struct RunInstruction {
+  pub span: Span,
+  pub expr: ShellOrExecExpr,
 }
 
 impl RunInstruction {
-  pub(crate) fn from_exec_record(record: Pair) -> Result<RunInstruction> {
-    Ok(RunInstruction::Exec(parse_string_array(record)?))
-  }
+  pub(crate) fn from_record(record: Pair) -> Result<RunInstruction> {
+    let span = Span::from_pair(&record);
+    let field = record.into_inner().next().unwrap();
 
-  pub(crate) fn from_shell_record(record: Pair) -> Result<RunInstruction> {
-    Ok(RunInstruction::Shell(parse_any_breakable(record)?))
-  }
-
-  pub fn exec<S: Into<String>>(args: Vec<S>) -> RunInstruction {
-    RunInstruction::Exec(args.into_iter().map(|s| s.into()).collect())
+    match field.as_rule() {
+      Rule::run_exec => Ok(RunInstruction {
+        span,
+        expr: ShellOrExecExpr::Exec(parse_string_array(field)?),
+      }),
+      Rule::run_shell => Ok(RunInstruction {
+        span,
+        expr: ShellOrExecExpr::Shell(parse_any_breakable(field)?),
+      }),
+      _ => Err(unexpected_token(field)),
+    }
   }
 
   /// Unpacks this instruction into its inner value if it is a Shell-form
   /// instruction, otherwise returns None.
   pub fn into_shell(self) -> Option<BreakableString> {
-    if let RunInstruction::Shell(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+    self.expr.into_shell()
   }
 
   /// Unpacks this instruction into its inner value if it is a Shell-form
   /// instruction, otherwise returns None.
   pub fn as_shell(&self) -> Option<&BreakableString> {
-    if let RunInstruction::Shell(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+    self.expr.as_shell()
   }
 
   /// Unpacks this instruction into its inner value if it is an Exec-form
   /// instruction, otherwise returns None.
-  pub fn into_exec(self) -> Option<Vec<String>> {
-    if let RunInstruction::Exec(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+  pub fn into_exec(self) -> Option<StringArray> {
+    self.expr.into_exec()
   }
 
   /// Unpacks this instruction into its inner value if it is an Exec-form
   /// instruction, otherwise returns None.
-  pub fn as_exec(&self) -> Option<&Vec<String>> {
-    if let RunInstruction::Exec(s) = self {
-      Some(s)
-    } else {
-      None
-    }
+  pub fn as_exec(&self) -> Option<&StringArray> {
+    self.expr.as_exec()
   }
 }
 
@@ -91,8 +81,10 @@ impl<'a> TryFrom<&'a Instruction> for &'a RunInstruction {
 #[cfg(test)]
 mod tests {
   use indoc::indoc;
+  use pretty_assertions::assert_eq;
 
   use super::*;
+  use crate::Span;
   use crate::test_util::*;
 
   #[test]
@@ -107,7 +99,19 @@ mod tests {
 
     assert_eq!(
       parse_single(r#"run ["echo", "hello world"]"#, Rule::run)?,
-      RunInstruction::exec(vec!["echo", "hello world"]).into()
+      RunInstruction {
+        span: Span::new(0, 27),
+        expr: ShellOrExecExpr::Exec(StringArray {
+          span: Span::new(4, 27),
+          elements: vec![SpannedString {
+            span: Span::new(5, 11),
+            content: "echo".to_string(),
+          }, SpannedString {
+            span: Span::new(13, 26),
+            content: "hello world".to_string(),
+          }]
+        }),
+      }.into()
     );
 
     Ok(())
@@ -231,7 +235,19 @@ mod tests {
         "echo", \
         "hello world"\
         ]"#, Rule::run)?,
-      RunInstruction::exec(vec!["echo", "hello world"]).into()
+      RunInstruction {
+        span: Span::new(0, 66),
+        expr: ShellOrExecExpr::Exec(StringArray {
+          span: Span::new(13, 66),
+          elements: vec![SpannedString {
+            span: Span::new(24, 30),
+            content: "echo".to_string(),
+          }, SpannedString {
+            span: Span::new(42, 55),
+            content: "hello world".to_string(),
+          }],
+        }),
+      }.into()
     );
 
     Ok(())
@@ -245,7 +261,19 @@ mod tests {
         "echo", \
         "hello world"\
         ]"#, Rule::run)?,
-      RunInstruction::exec(vec!["echo", "hello world"]).into()
+      RunInstruction {
+        span: Span::new(0, 66),
+        expr: ShellOrExecExpr::Exec(StringArray {
+          span: Span::new(13, 66),
+          elements: vec![SpannedString {
+            span: Span::new(24, 30),
+            content: "echo".to_string(),
+          }, SpannedString {
+            span: Span::new(42, 55),
+            content: "hello world".to_string(),
+          }],
+        })
+      }.into()
     );
 
     Ok(())

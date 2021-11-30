@@ -16,7 +16,7 @@ fn wrap() -> Result<()> {
 
   for ins in dockerfile.instructions {
     if let Instruction::From(f) = ins {
-      splicer.splice(&f.image_span, "splice:test");
+      splicer.splice(&f.image.span, "splice:test");
     }
   }
 

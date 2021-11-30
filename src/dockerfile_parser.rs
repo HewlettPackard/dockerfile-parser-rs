@@ -207,6 +207,21 @@ impl Instruction {
       _ => None,
     }
   }
+
+  /// Gets the span of the instruction.
+  pub fn span(&self) -> Span {
+    match self {
+      Instruction::From(instruction) => instruction.span,
+      Instruction::Arg(instruction) => instruction.span,
+      Instruction::Label(instruction) => instruction.span,
+      Instruction::Run(instruction) => instruction.span,
+      Instruction::Entrypoint(instruction) => instruction.span,
+      Instruction::Cmd(instruction) => instruction.span,
+      Instruction::Copy(instruction) => instruction.span,
+      Instruction::Env(instruction) => instruction.span,
+      Instruction::Misc(instruction) => instruction.span,
+    }
+  }
 }
 
 /// Maps an instruction struct to its enum variant, implementing From<T> on
@@ -240,21 +255,15 @@ impl TryFrom<Pair<'_>> for Instruction {
       Rule::arg => ArgInstruction::from_record(record)?.into(),
       Rule::label => LabelInstruction::from_record(record)?.into(),
 
-      Rule::run_exec => RunInstruction::from_exec_record(record)?.into(),
-      Rule::run_shell => RunInstruction::from_shell_record(record)?.into(),
+      Rule::run => RunInstruction::from_record(record)?.into(),
 
-      Rule::entrypoint_exec =>
-        EntrypointInstruction::from_exec_record(record)?.into(),
-      Rule::entrypoint_shell =>
-        EntrypointInstruction::from_shell_record(record)?.into(),
+      Rule::entrypoint => EntrypointInstruction::from_record(record)?.into(),
 
-      Rule::cmd_exec => CmdInstruction::from_exec_record(record)?.into(),
-      Rule::cmd_shell => CmdInstruction::from_shell_record(record)?.into(),
+      Rule::cmd => CmdInstruction::from_record(record)?.into(),
 
       Rule::copy => Instruction::Copy(CopyInstruction::from_record(record)?),
 
-      Rule::env_single => EnvInstruction::from_single_record(record)?.into(),
-      Rule::env_pairs => EnvInstruction::from_pairs_record(record)?.into(),
+      Rule::env => EnvInstruction::from_record(record)?.into(),
 
       Rule::misc => MiscInstruction::from_record(record)?.into(),
 
@@ -393,7 +402,7 @@ impl Dockerfile {
     for ins in &self.instructions {
       match ins {
         Instruction::Arg(a) => {
-          if a.name == name {
+          if a.name.content == name {
             return Some(a);
           } else {
             continue

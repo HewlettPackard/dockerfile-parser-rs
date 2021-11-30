@@ -125,15 +125,15 @@ label = { ^"label" ~ (label_single | (arg_ws ~ label_pair?)+) }
 
 run_shell = @{ any_breakable }
 run_exec = { string_array }
-run = _{ ^"run" ~ arg_ws ~ (run_exec | run_shell) }
+run = { ^"run" ~ arg_ws ~ (run_exec | run_shell) }
 
 entrypoint_shell = @{ any_breakable }
 entrypoint_exec = { string_array }
-entrypoint = _{ ^"entrypoint" ~ arg_ws ~ (entrypoint_exec | entrypoint_shell) }
+entrypoint = { ^"entrypoint" ~ arg_ws ~ (entrypoint_exec | entrypoint_shell) }
 
 cmd_shell = @{ any_breakable }
 cmd_exec = { string_array }
-cmd = _{ ^"cmd" ~ arg_ws ~ (cmd_exec | cmd_shell) }
+cmd = { ^"cmd" ~ arg_ws ~ (cmd_exec | cmd_shell) }
 
 copy_flag_name = @{ ASCII_ALPHA+ }
 copy_flag_value = @{ any_whitespace }
@@ -149,7 +149,7 @@ env_pairs = { (arg_ws ~ env_pair?)+ }
 env_single_quoted_value = ${ string }
 env_single_value = @{ any_breakable }
 env_single = {  arg_ws ~ env_name ~ arg_ws ~ (env_single_quoted_value | env_single_value) }
-env = _{ ^"env" ~ (env_single | env_pairs) }
+env = { ^"env" ~ (env_single | env_pairs) }
 
 misc_instruction = @{ ASCII_ALPHA+ }
 misc_arguments = @{ any_breakable }
