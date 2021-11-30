@@ -4,9 +4,7 @@ extern crate dockerfile_parser;
 
 use dockerfile_parser::*;
 use indoc::indoc;
-
-mod common;
-use common::*;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn parse_basic() -> Result<(), dockerfile_parser::Error> {
@@ -22,8 +20,10 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
     dockerfile.instructions[0],
     Instruction::From(FromInstruction {
       span: Span { start: 5, end: 21 },
-      image: "alpine:3.10".into(),
-      image_span: Span { start: 10, end: 21 },
+      image: SpannedString {
+        span: Span { start: 10, end: 21 },
+        content: "alpine:3.10".into(),
+      },
       image_parsed: ImageRef {
         registry: None,
         image: "alpine".into(),
@@ -32,7 +32,6 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
       },
       index: 0,
       alias: None,
-      alias_span: None
     })
   );
 
@@ -93,10 +92,8 @@ fn parse_multiline_exec() -> Result<(), dockerfile_parser::Error> {
 
   // note: 9 spaces due to 1 before the \ + 8 for indent
   assert_eq!(
-    dockerfile.instructions[0],
-    Instruction::Run(RunInstruction::Exec(strings(&[
-      "apk", "add", "--no-cache", "curl"
-    ])))
+    dockerfile.instructions[0].as_run().unwrap().as_exec().unwrap().as_str_vec(),
+    &["apk", "add", "--no-cache", "curl"]
   );
 
   assert_eq!(
@@ -130,30 +127,82 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
   assert_eq!(
     dockerfile.instructions[0]
       .as_label().unwrap(),
-    &LabelInstruction(vec![
-      Label::new("foo", "bar")
-    ])
+    &LabelInstruction {
+      span: Span::new(5, 18),
+      labels: vec![
+        Label::new(
+          Span::new(11, 18),
+          SpannedString {
+            span: Span::new(11, 14),
+            content: "foo".to_string(),
+          },
+          SpannedString {
+            span: Span::new(15, 18),
+            content: "bar".to_string(),
+          },
+        )
+      ]
+    }
   );
 
   assert_eq!(
     dockerfile.instructions[1],
-    Instruction::Label(LabelInstruction(vec![
-      Label::new("foo", "bar")
-    ]))
+    Instruction::Label(LabelInstruction {
+      span: Span::new(24, 41),
+      labels: vec![
+        Label::new(
+          Span::new(30, 41),
+          SpannedString {
+            span: Span::new(30, 35),
+            content: "foo".to_string(),
+          },
+          SpannedString {
+            span: Span::new(36, 41),
+            content: "bar".to_string(),
+          },
+        )
+      ]
+    })
   );
 
   assert_eq!(
     dockerfile.instructions[2],
-    Instruction::Label(LabelInstruction(vec![
-      Label::new("foo=bar", "bar")
-    ]))
+    Instruction::Label(LabelInstruction {
+      span: Span::new(47, 66),
+      labels: vec![
+        Label::new(
+          Span::new(53, 66),
+          SpannedString {
+            span: Span::new(53, 62),
+            content: "foo=bar".to_string(),
+          },
+          SpannedString {
+            span: Span::new(63, 66),
+            content: "bar".to_string(),
+          },
+        )
+      ]
+    })
   );
 
   assert_eq!(
     dockerfile.instructions[3],
-    Instruction::Label(LabelInstruction(vec![
-      Label::new("foo", "bar          baz")
-    ]))
+    Instruction::Label(LabelInstruction {
+      span: Span::new(72, 102),
+      labels: vec![
+        Label::new(
+          Span::new(78, 102),
+          SpannedString {
+            span: Span::new(78, 81),
+            content: "foo".to_string(),
+          },
+          SpannedString {
+            span: Span::new(82, 102),
+            content: "bar          baz".to_string(),
+          },
+        )
+      ]
+    })
   );
 
   assert_eq!(
@@ -225,18 +274,33 @@ fn parse_comment() -> Result<(), dockerfile_parser::Error> {
   );
 
   assert_eq!(
-    dockerfile.instructions[5].as_env().unwrap().0,
+    dockerfile.instructions[5].as_env().unwrap().vars,
     vec![
-      EnvVar::new("foo", ((400, 401), "a")),
-      EnvVar::new("bar", ((437, 438), "b")),
+      EnvVar::new(
+        Span::new(396, 401),
+        SpannedString {
+          span: Span::new(396, 399),
+          content: "foo".to_string(),
+        },
+        ((400, 401), "a")
+      ),
+      EnvVar::new(
+        Span::new(433, 438),
+        SpannedString {
+          span: Span::new(433, 436),
+          content: "bar".to_string(),
+        },
+        ((437, 438), "b")
+      ),
     ]
   );
 
   assert_eq!(
     dockerfile.instructions[6]
       .as_run().unwrap()
-      .as_exec().unwrap(),
-    &vec!["echo", "hello", "world"]
+      .as_exec().unwrap()
+      .as_str_vec(),
+    vec!["echo", "hello", "world"]
   );
 
   assert_eq!(

@@ -14,7 +14,7 @@ struct SpliceOffset {
 }
 
 /// A byte-index tuple representing a span of characters in a string
-#[derive(PartialEq, Eq, Clone, Ord, PartialOrd)]
+#[derive(PartialEq, Eq, Clone, Ord, PartialOrd, Copy)]
 pub struct Span {
   pub start: usize,
   pub end: usize
@@ -122,7 +122,7 @@ impl fmt::Debug for Span {
 /// };
 ///
 /// let mut splicer = dockerfile.splicer();
-/// splicer.splice(&from.image_span, "alpine:3.11");
+/// splicer.splice(&from.image.span, "alpine:3.11");
 ///
 /// assert_eq!(splicer.content, r#"
 ///   FROM alpine:3.11
@@ -197,7 +197,7 @@ mod tests {
 
     let first_from = TryInto::<&FromInstruction>::try_into(&d.instructions[0]).unwrap();
     assert_eq!(
-      first_from.alias_span.as_ref().unwrap().relative_span(&d),
+      first_from.alias.as_ref().unwrap().span.relative_span(&d),
       (0, (20, 25).into())
     );
 
@@ -229,7 +229,7 @@ mod tests {
 
     // build
     assert_eq!(
-      copy.flags[0].value_span.relative_span(&d),
+      copy.flags[0].value.span.relative_span(&d),
       (5, (12, 17).into())
     );
   }

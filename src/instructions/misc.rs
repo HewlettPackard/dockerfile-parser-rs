@@ -2,6 +2,7 @@
 
 use std::convert::TryFrom;
 
+use crate::Span;
 use crate::dockerfile_parser::Instruction;
 use crate::error::*;
 use crate::util::*;
@@ -16,18 +17,20 @@ use crate::parser::*;
 /// `USER`, `WORKDIR`, `ONBUILD`, `STOPSIGNAL`, `HEALTHCHECK`, `SHELL`
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MiscInstruction {
-  instruction: String,
-  arguments: BreakableString
+  pub span: Span,
+  pub instruction: SpannedString,
+  pub arguments: BreakableString
 }
 
 impl MiscInstruction {
   pub(crate) fn from_record(record: Pair) -> Result<MiscInstruction> {
+    let span = Span::from_pair(&record);
     let mut instruction = None;
     let mut arguments = None;
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::misc_instruction => instruction = Some(field.as_str()),
+        Rule::misc_instruction => instruction = Some(parse_string(&field)?),
         Rule::misc_arguments => arguments = Some(parse_any_breakable(field)?),
         _ => return Err(unexpected_token(field))
       }
@@ -35,13 +38,14 @@ impl MiscInstruction {
 
     let instruction = instruction.ok_or_else(|| Error::GenericParseError {
       message: "generic instructions require a name".into()
-    })?.to_string();
+    })?;
 
     let arguments = arguments.ok_or_else(|| Error::GenericParseError {
       message: "generic instructions require arguments".into()
     })?;
 
     Ok(MiscInstruction {
+      span,
       instruction, arguments
     })
   }

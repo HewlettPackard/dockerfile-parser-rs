@@ -5,6 +5,8 @@ use std::convert::TryFrom;
 use crate::dockerfile_parser::Instruction;
 use crate::image::ImageRef;
 use crate::parser::{Pair, Rule};
+use crate::parse_string;
+use crate::SpannedString;
 use crate::splicer::*;
 use crate::error::*;
 
@@ -17,13 +19,11 @@ use crate::error::*;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FromInstruction {
   pub span: Span,
-  pub image: String,
-  pub image_span: Span,
+  pub image: SpannedString,
   pub image_parsed: ImageRef,
 
   pub index: usize,
-  pub alias: Option<String>,
-  pub alias_span: Option<Span>
+  pub alias: Option<SpannedString>,
 }
 
 impl FromInstruction {
@@ -41,29 +41,26 @@ impl FromInstruction {
       };
     }
 
-    let (image, image_span) = if let Some(image_field) = image_field {
-      (image_field.as_str().to_string(), Span::from_pair(&image_field))
+    let image = if let Some(image_field) = image_field {
+      parse_string(&image_field)?
     } else {
       return Err(Error::GenericParseError {
         message: "missing from image".into()
       });
     };
 
-    let image_parsed = ImageRef::parse(&image);
+    let image_parsed = ImageRef::parse(&image.as_ref());
 
-    let (alias, alias_span) = if let Some(alias_field) = alias_field {
-      (
-        Some(alias_field.as_str().to_string()),
-        Some(Span::from_pair(&alias_field))
-      )
+    let alias = if let Some(alias_field) = alias_field {
+      Some(parse_string(&alias_field)?)
     } else {
-      (None, None)
+      None
     };
 
     Ok(FromInstruction {
       span, index,
-      image, image_span, image_parsed,
-      alias, alias_span,
+      image, image_parsed,
+      alias,
     })
   }
 
@@ -91,6 +88,7 @@ impl<'a> TryFrom<&'a Instruction> for &'a FromInstruction {
 #[cfg(test)]
 mod tests {
   use indoc::indoc;
+  use pretty_assertions::assert_eq;
 
   use super::*;
   use crate::test_util::*;
@@ -108,8 +106,10 @@ mod tests {
     assert_eq!(from, FromInstruction {
       span: Span { start: 0, end: 16 },
       index: 0,
-      image: "alpine:3.10".into(),
-      image_span: Span { start: 5, end: 16 },
+      image: SpannedString {
+        span: Span { start: 5, end: 16 },
+        content: "alpine:3.10".into(),
+      },
       image_parsed: ImageRef {
         registry: None,
         image: "alpine".into(),
@@ -117,7 +117,6 @@ mod tests {
         hash: None
       },
       alias: None,
-      alias_span: None
     });
 
     Ok(())
@@ -167,16 +166,20 @@ mod tests {
     assert_eq!(from, FromInstruction {
       span: Span { start: 0, end: 68 },
       index: 0,
-      image: "alpine:3.10".into(),
-      image_span: Span { start: 17, end: 28 },
+      image: SpannedString {
+        span: Span { start: 17, end: 28 },
+        content: "alpine:3.10".into(),
+      },
       image_parsed: ImageRef {
         registry: None,
         image: "alpine".into(),
         tag: Some("3.10".into()),
         hash: None
       },
-      alias: Some("test".into()),
-      alias_span: Some((64, 68).into())
+      alias: Some(SpannedString {
+        span: (64, 68).into(),
+        content: "test".into(),
+      }),
     });
 
     Ok(())

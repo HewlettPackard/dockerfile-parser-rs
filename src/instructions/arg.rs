@@ -3,12 +3,11 @@
 use std::convert::TryFrom;
 
 use crate::dockerfile_parser::Instruction;
+use crate::SpannedString;
 use crate::error::*;
+use crate::parse_string;
 use crate::parser::{Pair, Rule};
 use crate::splicer::Span;
-
-use enquote::unquote;
-use snafu::ResultExt;
 
 /// A Dockerfile [`ARG` instruction][arg].
 ///
@@ -18,9 +17,7 @@ pub struct ArgInstruction {
   pub span: Span,
 
   /// The argument key
-  pub name: String,
-
-  pub name_span: Span,
+  pub name: SpannedString,
 
   /// An optional argument value.
   ///
@@ -28,9 +25,7 @@ pub struct ArgInstruction {
   /// [multi-stage build][build].
   ///
   /// [build]: https://docs.docker.com/develop/develop-images/multistage-build/
-  pub value: Option<String>,
-
-  pub value_span: Option<Span>,
+  pub value: Option<SpannedString>,
 }
 
 impl ArgInstruction {
@@ -41,39 +36,25 @@ impl ArgInstruction {
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::arg_name => name = Some((field.as_str(), Span::from_pair(&field))),
-        Rule::arg_quoted_value => {
-          let v = unquote(field.as_str()).context(UnescapeError)?;
-
-          value = Some((v, Span::from_pair(&field)));
-        },
-        Rule::arg_value => value = Some((
-          field.as_str().to_string(),
-          Span::from_pair(&field)
-        )),
+        Rule::arg_name => name = Some(parse_string(&field)?),
+        Rule::arg_quoted_value => value = Some(parse_string(&field)?),
+        Rule::arg_value => value = Some(parse_string(&field)?),
         Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
     }
 
-    let (name, name_span) = match name {
-      Some((name, name_span)) => (name.to_string(), name_span),
+    let name = match name {
+      Some(name) => name,
       _ => return Err(Error::GenericParseError {
         message: "arg name is required".into()
       })
     };
 
-    let (value, value_span) = match value {
-      Some((value, value_span)) => (Some(value), Some(value_span)),
-      None => (None, None)
-    };
-
     Ok(ArgInstruction {
       span,
       name,
-      name_span,
       value,
-      value_span,
     })
   }
 }
@@ -95,6 +76,8 @@ impl<'a> TryFrom<&'a Instruction> for &'a ArgInstruction {
 
 #[cfg(test)]
 mod tests {
+  use pretty_assertions::assert_eq;
+
   use super::*;
   use crate::Dockerfile;
   use crate::test_util::*;
@@ -105,10 +88,14 @@ mod tests {
       parse_single(r#"arg foo=bar"#, Rule::arg)?,
       ArgInstruction {
         span: Span::new(0, 11),
-        name: "foo".into(),
-        name_span: Span::new(4, 7),
-        value: Some("bar".into()),
-        value_span: Some(Span::new(8, 11)),
+        name: SpannedString {
+          span: Span::new(4, 7),
+          content: "foo".into(),
+        },
+        value: Some(SpannedString {
+          span: Span::new(8, 11),
+          content: "bar".into(),
+        }),
       }.into()
     );
 
@@ -116,10 +103,14 @@ mod tests {
       parse_single(r#"arg foo="bar""#, Rule::arg)?,
       ArgInstruction {
         span: Span::new(0, 13),
-        name: "foo".into(),
-        name_span: Span::new(4, 7),
-        value: Some("bar".into()),
-        value_span: Some(Span::new(8, 13)),
+        name: SpannedString {
+          span: Span::new(4, 7),
+          content: "foo".into(),
+        },
+        value: Some(SpannedString {
+          span: Span::new(8, 13),
+          content: "bar".into(),
+        }),
       }.into()
     );
 
@@ -127,10 +118,14 @@ mod tests {
       parse_single(r#"arg foo='bar'"#, Rule::arg)?,
       ArgInstruction {
         span: Span::new(0, 13),
-        name: "foo".into(),
-        name_span: Span::new(4, 7),
-        value: Some("bar".into()),
-        value_span: Some(Span::new(8, 13)),
+        name: SpannedString {
+          span: Span::new(4, 7),
+          content: "foo".into(),
+        },
+        value: Some(SpannedString {
+          span: Span::new(8, 13),
+          content: "bar".into(),
+        }),
       }.into()
     );
 

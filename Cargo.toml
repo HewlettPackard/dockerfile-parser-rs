@@ -27,6 +27,7 @@ lazy_static = "1.4"
 
 [dev-dependencies]
 indoc = "0.3"
+pretty_assertions = "0.7.2"
 
 [lib]
 name = "dockerfile_parser"

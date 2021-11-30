@@ -6,7 +6,9 @@ use snafu::ensure;
 
 use crate::dockerfile_parser::Instruction;
 use crate::parser::{Pair, Rule};
-use crate::{Span, error::*};
+use crate::{Span, parse_string};
+use crate::SpannedString;
+use crate::error::*;
 
 /// A key/value pair passed to a `COPY` instruction as a flag.
 ///
@@ -14,10 +16,8 @@ use crate::{Span, error::*};
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CopyFlag {
   pub span: Span,
-  pub name: String,
-  pub name_span: Span,
-  pub value: String,
-  pub value_span: Span
+  pub name: SpannedString,
+  pub value: SpannedString,
 }
 
 impl CopyFlag {
@@ -28,28 +28,22 @@ impl CopyFlag {
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::copy_flag_name => name = Some((
-          field.as_str().to_string(),
-          Span::from_pair(&field)
-        )),
-        Rule::copy_flag_value => value = Some((
-          field.as_str().to_string(),
-          Span::from_pair(&field)
-        )),
+        Rule::copy_flag_name => name = Some(parse_string(&field)?),
+        Rule::copy_flag_value => value = Some(parse_string(&field)?),
         _ => return Err(unexpected_token(field))
       }
     }
 
-    let (name, name_span) = name.ok_or_else(|| Error::GenericParseError {
+    let name = name.ok_or_else(|| Error::GenericParseError {
       message: "copy flags require a key".into(),
     })?;
 
-    let (value, value_span) = value.ok_or_else(|| Error::GenericParseError {
+    let value = value.ok_or_else(|| Error::GenericParseError {
       message: "copy flags require a value".into()
     })?;
 
     Ok(CopyFlag {
-      span, name, name_span, value, value_span
+      span, name, value
     })
   }
 }
@@ -61,8 +55,8 @@ impl CopyFlag {
 pub struct CopyInstruction {
   pub span: Span,
   pub flags: Vec<CopyFlag>,
-  pub sources: Vec<String>,
-  pub destination: String
+  pub sources: Vec<SpannedString>,
+  pub destination: SpannedString
 }
 
 impl CopyInstruction {
@@ -74,7 +68,7 @@ impl CopyInstruction {
     for field in record.into_inner() {
       match field.as_rule() {
         Rule::copy_flag => flags.push(CopyFlag::from_record(field)?),
-        Rule::copy_pathspec => paths.push(field.as_str().to_string()),
+        Rule::copy_pathspec => paths.push(parse_string(&field)?),
         Rule::comment => continue,
         _ => return Err(unexpected_token(field))
       }
@@ -117,6 +111,7 @@ impl<'a> TryFrom<&'a Instruction> for &'a CopyInstruction {
 #[cfg(test)]
 mod tests {
   use indoc::indoc;
+  use pretty_assertions::assert_eq;
 
   use super::*;
   use crate::test_util::*;
@@ -128,8 +123,14 @@ mod tests {
       CopyInstruction {
         span: Span { start: 0, end: 12 },
         flags: vec![],
-        sources: strings(&["foo"]),
-        destination: "bar".to_string(),
+        sources: vec![SpannedString {
+          span: Span::new(5, 8),
+          content: "foo".to_string()
+        }],
+        destination: SpannedString {
+          span: Span::new(9, 12),
+          content: "bar".to_string()
+        },
       }.into()
     );
 
@@ -143,8 +144,20 @@ mod tests {
       CopyInstruction {
         span: Span { start: 0, end: 20 },
         flags: vec![],
-        sources: strings(&["foo", "bar", "baz"]),
-        destination: "qux".into(),
+        sources: vec![SpannedString {
+          span: Span::new(5, 8),
+          content: "foo".to_string(),
+        }, SpannedString {
+          span: Span::new(9, 12),
+          content: "bar".to_string()
+        }, SpannedString {
+          span: Span::new(13, 16),
+          content: "baz".to_string()
+        }],
+        destination: SpannedString {
+          span: Span::new(17, 20),
+          content: "qux".to_string()
+        },
       }.into()
     );
 
@@ -159,8 +172,14 @@ mod tests {
       CopyInstruction {
         span: Span { start: 0, end: 14 },
         flags: vec![],
-        sources: strings(&["foo"]),
-        destination: "bar".into(),
+        sources: vec![SpannedString {
+          span: Span::new(5, 8),
+          content: "foo".to_string(),
+        }],
+        destination: SpannedString {
+          span: Span::new(11, 14),
+          content: "bar".to_string(),
+        },
       }.into()
     );
 
@@ -185,14 +204,24 @@ mod tests {
         flags: vec![
           CopyFlag {
             span: Span { start: 5, end: 23 },
-            name: "from".into(),
-            name_span: Span { start: 7, end: 11 },
-            value: "alpine:3.10".into(),
-            value_span: Span { start: 12, end: 23 }
+            name: SpannedString {
+              content: "from".into(),
+              span: Span { start: 7, end: 11 },
+            },
+            value: SpannedString {
+              content: "alpine:3.10".into(),
+              span: Span { start: 12, end: 23 },
+            }
           }
         ],
-        sources: strings(&["/usr/lib/libssl.so.1.1"]),
-        destination: "/tmp/".into(),
+        sources: vec![SpannedString {
+          span: Span::new(24, 46),
+          content: "/usr/lib/libssl.so.1.1".to_string(),
+        }],
+        destination: SpannedString {
+          span: Span::new(47, 52),
+          content: "/tmp/".into(),
+        }
       }.into()
     );
 
@@ -220,14 +249,24 @@ mod tests {
         flags: vec![
           CopyFlag {
             span: Span { start: 9, end: 27 },
-            name: "from".into(),
-            name_span: Span { start: 11, end: 15 },
-            value: "alpine:3.10".into(),
-            value_span: Span { start: 16, end: 27 }
+            name: SpannedString {
+              span: Span { start: 11, end: 15 },
+              content: "from".into(),
+            },
+            value: SpannedString {
+              span: Span { start: 16, end: 27 },
+              content: "alpine:3.10".into(),
+            },
           }
         ],
-        sources: strings(&["/usr/lib/libssl.so.1.1"]),
-        destination: "/tmp/".into(),
+        sources: vec![SpannedString {
+          span: Span::new(44, 66),
+          content: "/usr/lib/libssl.so.1.1".to_string(),
+        }],
+        destination: SpannedString {
+          span: Span::new(81, 86),
+          content: "/tmp/".into(),
+        },
       }.into()
     );
 
