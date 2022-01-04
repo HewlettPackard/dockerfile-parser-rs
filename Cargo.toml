@@ -20,7 +20,7 @@ circle-ci = { repository = "HewlettPackard/dockerfile-parser-rs", branch = "mast
 [dependencies]
 pest = "2.1"
 pest_derive = "2.1"
-snafu = "0.6"
+snafu = "0.7"
 enquote = "1.1"
 regex = "1.5"
 lazy_static = "1.4"
