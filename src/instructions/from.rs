@@ -10,6 +10,45 @@ use crate::SpannedString;
 use crate::splicer::*;
 use crate::error::*;
 
+/// A key/value pair passed to a `FROM` instruction as a flag.
+///
+/// Examples include: `FROM --platform=linux/amd64 node:lts-alpine`
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FromFlag {
+  pub span: Span,
+  pub name: SpannedString,
+  pub value: SpannedString,
+}
+
+impl FromFlag {
+  fn from_record(record: Pair) -> Result<FromFlag> {
+    let span = Span::from_pair(&record);
+    let mut name = None;
+    let mut value = None;
+
+    for field in record.into_inner() {
+      match field.as_rule() {
+        Rule::from_flag_name => name = Some(parse_string(&field)?),
+        Rule::from_flag_value => value = Some(parse_string(&field)?),
+        _ => return Err(unexpected_token(field))
+      }
+    }
+
+    let name = name.ok_or_else(|| Error::GenericParseError {
+      message: "from flags require a key".into(),
+    })?;
+
+    let value = value.ok_or_else(|| Error::GenericParseError {
+      message: "from flags require a value".into()
+    })?;
+
+    Ok(FromFlag {
+      span, name, value
+    })
+  }
+}
+
+
 /// A Dockerfile [`FROM` instruction][from].
 ///
 /// Contains spans for the entire instruction, the image, and the alias (if
@@ -19,6 +58,7 @@ use crate::error::*;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FromInstruction {
   pub span: Span,
+  pub flags: Vec<FromFlag>,
   pub image: SpannedString,
   pub image_parsed: ImageRef,
 
@@ -31,9 +71,11 @@ impl FromInstruction {
     let span = Span::from_pair(&record);
     let mut image_field = None;
     let mut alias_field = None;
+    let mut flags = Vec::new();
 
     for field in record.into_inner() {
       match field.as_rule() {
+        Rule::from_flag => flags.push(FromFlag::from_record(field)?),        
         Rule::from_image => image_field = Some(field),
         Rule::from_alias => alias_field = Some(field),
         Rule::comment => continue,
@@ -60,7 +102,7 @@ impl FromInstruction {
     Ok(FromInstruction {
       span, index,
       image, image_parsed,
-      alias,
+      flags, alias,
     })
   }
 
@@ -143,6 +185,46 @@ mod tests {
 
     Ok(())
   }
+
+  #[test]
+  fn from_flags() -> Result<()> {
+    assert_eq!(
+      parse_single(
+        "FROM --platform=linux/amd64 alpine:3.10",
+        Rule::from
+      )?,
+      FromInstruction {
+        span: Span { start: 0, end: 39 },
+        flags: vec![
+          FromFlag {
+            span: Span { start: 5, end: 27 },
+            name: SpannedString {
+              content: "platform".into(),
+              span: Span { start: 7, end: 15 },
+            },
+            value: SpannedString {
+              content: "linux/amd64".into(),
+              span: Span { start: 16, end: 27 },
+            }
+          }
+        ],
+        image: SpannedString {
+          span: Span { start: 28, end: 39 },
+          content: "alpine:3.10".into(),
+        },
+        image_parsed: ImageRef {
+          registry: None,
+          image: "alpine".into(),
+          tag: Some("3.10".into()),
+          hash: None
+        },
+        alias: None,
+      }.into()
+    );
+
+    Ok(())
+  }
+
 
   #[test]
   fn from_multiline() -> Result<()> {
