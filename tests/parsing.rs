@@ -32,6 +32,7 @@ fn parse_basic() -> Result<(), dockerfile_parser::Error> {
       },
       index: 0,
       alias: None,
+      flags: vec![],
     })
   );
 
