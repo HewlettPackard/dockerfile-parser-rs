@@ -159,6 +159,7 @@ mod tests {
         hash: None
       },
       alias: None,
+      flags: vec![],
     });
 
     Ok(())
@@ -194,6 +195,7 @@ mod tests {
         Rule::from
       )?,
       FromInstruction {
+        index: 0,
         span: Span { start: 0, end: 39 },
         flags: vec![
           FromFlag {
@@ -262,6 +264,7 @@ mod tests {
         span: (64, 68).into(),
         content: "test".into(),
       }),
+      flags: vec![],
     });
 
     Ok(())
