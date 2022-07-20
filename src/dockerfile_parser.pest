@@ -101,10 +101,13 @@ string_array = _{
   ) | "[" ~ arg_ws_maybe ~ "]"
 }
 
+from_flag_name = @{ ASCII_ALPHA+ }
+from_flag_value = @{ any_whitespace }
+from_flag = { "--" ~ from_flag_name ~ "=" ~ from_flag_value }
 from_image = @{ (ASCII_ALPHANUMERIC | "_" | "-" | "." | ":" | "/" | "$" | "{" | "}")+ }
 from_alias = { identifier_whitespace }
 from_alias_outer = _{ arg_ws ~ ^"as" ~ arg_ws ~ from_alias }
-from = { ^"from" ~ arg_ws ~ from_image ~ from_alias_outer?  }
+from = { ^"from" ~ (arg_ws ~ from_flag)* ~ arg_ws ~ from_image ~ from_alias_outer?  }
 
 arg_name = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 arg_value = ${ any_whitespace }
