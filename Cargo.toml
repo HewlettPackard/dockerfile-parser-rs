@@ -26,7 +26,7 @@ regex = "1.5"
 lazy_static = "1.4"
 
 [dev-dependencies]
-indoc = "1.0"
+indoc = "2.0"
 pretty_assertions = "1.0.0"
 
 [lib]
