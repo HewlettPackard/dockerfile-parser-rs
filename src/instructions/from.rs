@@ -10,6 +10,9 @@ use crate::SpannedString;
 use crate::splicer::*;
 use crate::error::*;
 
+use lazy_static::lazy_static;
+use regex::Regex;
+
 /// A key/value pair passed to a `FROM` instruction as a flag.
 ///
 /// Examples include: `FROM --platform=linux/amd64 node:lts-alpine`
@@ -68,6 +71,11 @@ pub struct FromInstruction {
 
 impl FromInstruction {
   pub(crate) fn from_record(record: Pair, index: usize) -> Result<FromInstruction> {
+    lazy_static! {
+      static ref HEX: Regex =
+          Regex::new(r"[0-9a-fA-F]+").unwrap();
+    }
+
     let span = Span::from_pair(&record);
     let mut image_field = None;
     let mut alias_field = None;
@@ -92,6 +100,17 @@ impl FromInstruction {
     };
 
     let image_parsed = ImageRef::parse(&image.as_ref());
+
+    if let Some(hash) = &image_parsed.hash {
+      let parts: Vec<&str> = hash.split(":").collect();
+      if let ["sha256", hexdata] = parts[..] {
+        if !HEX.is_match(hexdata) || hexdata.len() != 64 {
+          return Err(Error::GenericParseError { message: "image reference digest is invalid".into() });
+        }
+      } else {
+        return Err(Error::GenericParseError { message: "image reference digest is invalid".into() });
+      }
+    }
 
     let alias = if let Some(alias_field) = alias_field {
       Some(parse_string(&alias_field)?)
@@ -129,11 +148,36 @@ impl<'a> TryFrom<&'a Instruction> for &'a FromInstruction {
 
 #[cfg(test)]
 mod tests {
-  use indoc::indoc;
+  use core::panic;
+
+use indoc::indoc;
   use pretty_assertions::assert_eq;
 
   use super::*;
   use crate::test_util::*;
+
+  #[test]
+  fn from_bad_digest() {
+    let cases = vec![
+      "from alpine@sha256:ca5a2eb9b7917e542663152b04c0",
+      "from alpine@sha257:ca5a2eb9b7917e542663152b04c0ad0572e0522fcf80ff080156377fc08ea8f8",
+      "from alpine@ca5a2eb9b7917e542663152b04c0ad0572e0522fcf80ff080156377fc08ea8f8",
+    ];
+
+    for case in cases {
+      let result = parse_direct(
+        case,
+        Rule::from,
+        |p| FromInstruction::from_record(p, 0)
+      );
+
+      match result {
+        Ok(_) => panic!("Expected parse error."),
+        Err(Error::GenericParseError { message: _}) => {},
+        Err(_) => panic!("Expected GenericParseError"),
+      };
+    }
+  }
 
   #[test]
   fn from_no_alias() -> Result<()> {
