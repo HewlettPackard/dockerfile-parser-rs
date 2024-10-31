@@ -52,7 +52,7 @@ fn is_registry(token: &str) -> bool {
 /// 16.
 /// If None is returned, substitution was impossible, either because a
 /// referenced variable did not exist, or recursion depth was exceeded.
-fn substitute<'a, 'b>(
+pub fn substitute<'a, 'b>(
   s: &'a str,
   vars: &'b HashMap<&'b str, &'b str>,
   used_vars: &mut HashSet<String>,
