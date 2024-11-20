@@ -35,7 +35,7 @@ pub(crate) fn parse_string(field: &Pair) -> Result<SpannedString> {
   let str_span = Span::from_pair(field);
   let field_str = field.as_str();
   let content = if matches!(field_str.chars().next(), Some('"' | '\'' | '`')) {
-    unquote(field_str).context(UnescapeError)?
+    unquote(field_str).context(UnescapeSnafu)?
   } else {
     field_str.to_string()
   };

@@ -3,8 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::iter::FromIterator;
+use std::sync::LazyLock;
 
-use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::{Dockerfile, Span, Splicer};
@@ -58,9 +58,9 @@ pub fn substitute<'a, 'b>(
   used_vars: &mut HashSet<String>,
   max_recursion_depth: u8
 ) -> Option<String> {
-  lazy_static! {
-    static ref VAR: Regex = Regex::new(r"\$(?:([A-Za-z0-9_]+)|\{([A-Za-z0-9_]+)\})").unwrap();
-  }
+  static VAR: LazyLock<Regex> = LazyLock::new(||
+    Regex::new(r"\$(?:([A-Za-z0-9_]+)|\{([A-Za-z0-9_]+)\})").unwrap()
+  );
 
   // note: docker also allows defaults in FROMs, e.g.
   //   ARG tag
@@ -156,19 +156,13 @@ impl ImageRef {
     let vars: HashMap<&'a str, &'a str> = HashMap::from_iter(
       dockerfile.global_args
         .iter()
-        .filter_map(|a| match a.value.as_ref() {
-          Some(v) => Some((a.name.as_ref(), v.as_ref())),
-          None => None
-        })
+        .filter_map(|a| a.value.as_ref().map(|v| (a.name.as_ref(), v.as_ref())))
     );
 
     let mut used_vars = HashSet::new();
 
-    if let Some(s) = substitute(&self.to_string(), &vars, &mut used_vars, 16) {
-      Some((ImageRef::parse(&s), used_vars))
-    } else {
-      None
-    }
+    substitute(&self.to_string(), &vars, &mut used_vars, 16)
+      .map(|s| (ImageRef::parse(&s), used_vars))
   }
 
   /// Given a Dockerfile (and its global `ARG`s), perform any necessary

@@ -1,6 +1,7 @@
 // (C) Copyright 2019-2020 Hewlett Packard Enterprise Development LP
 
 use std::convert::TryFrom;
+use std::sync::LazyLock;
 
 use crate::dockerfile_parser::Instruction;
 use crate::image::ImageRef;
@@ -10,7 +11,6 @@ use crate::SpannedString;
 use crate::splicer::*;
 use crate::error::*;
 
-use lazy_static::lazy_static;
 use regex::Regex;
 
 /// A key/value pair passed to a `FROM` instruction as a flag.
@@ -71,10 +71,7 @@ pub struct FromInstruction {
 
 impl FromInstruction {
   pub(crate) fn from_record(record: Pair, index: usize) -> Result<FromInstruction> {
-    lazy_static! {
-      static ref HEX: Regex =
-          Regex::new(r"[0-9a-fA-F]+").unwrap();
-    }
+    static HEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9a-fA-F]+").unwrap());
 
     let span = Span::from_pair(&record);
     let mut image_field = None;
@@ -83,7 +80,7 @@ impl FromInstruction {
 
     for field in record.into_inner() {
       match field.as_rule() {
-        Rule::from_flag => flags.push(FromFlag::from_record(field)?),        
+        Rule::from_flag => flags.push(FromFlag::from_record(field)?),
         Rule::from_image => image_field = Some(field),
         Rule::from_alias => alias_field = Some(field),
         Rule::comment => continue,
@@ -99,7 +96,7 @@ impl FromInstruction {
       });
     };
 
-    let image_parsed = ImageRef::parse(&image.as_ref());
+    let image_parsed = ImageRef::parse(image.as_ref());
 
     if let Some(hash) = &image_parsed.hash {
       let parts: Vec<&str> = hash.split(":").collect();

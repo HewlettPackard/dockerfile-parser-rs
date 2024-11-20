@@ -71,7 +71,7 @@ impl<'a> Ord for Stage<'a> {
 
 impl<'a> PartialOrd for Stage<'a> {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-    Some(self.cmp(&other))
+    Some(self.cmp(other))
   }
 }
 

@@ -76,7 +76,7 @@ impl CopyInstruction {
 
     ensure!(
       paths.len() >= 2,
-      GenericParseError {
+      GenericParseSnafu {
         message: "copy requires at least one source and a destination"
       }
     );

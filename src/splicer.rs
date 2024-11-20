@@ -88,7 +88,7 @@ impl From<(usize, usize)> for Span {
 
 impl From<&Pair<'_>> for Span {
   fn from(pair: &Pair<'_>) -> Self {
-    Span::from_pair(&pair)
+    Span::from_pair(pair)
   }
 }
 

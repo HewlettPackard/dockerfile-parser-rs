@@ -16,7 +16,7 @@ use crate::parser::{DockerfileParser, Pair, Rule};
 /// per-instruction unit tests.
 pub fn parse_single(input: &str, rule: Rule) -> Result<Instruction> {
   let record = DockerfileParser::parse(rule, input)
-    .context(ParseError)?
+    .context(ParseSnafu)?
     .next()
     .ok_or(Error::UnknownParseError)?;
 
@@ -28,7 +28,7 @@ where
   F: Fn(Pair) -> Result<T>
 {
   let pair = DockerfileParser::parse(rule, input)
-    .context(ParseError)?
+    .context(ParseSnafu)?
     .next()
     .ok_or(Error::UnknownParseError)?;
 

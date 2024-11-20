@@ -40,7 +40,7 @@ impl Label {
         Rule::label_quoted_name | Rule::label_single_quoted_name => {
           // label seems to be uniquely able to span multiple lines when quoted
           let v = unquote(&clean_escaped_breaks(field.as_str()))
-            .context(UnescapeError)?;
+            .context(UnescapeSnafu)?;
 
           name = Some(SpannedString {
             content: v,
@@ -51,7 +51,7 @@ impl Label {
         Rule::label_value => value = Some(parse_string(&field)?),
         Rule::label_quoted_value => {
           let v = unquote(&clean_escaped_breaks(field.as_str()))
-            .context(UnescapeError)?;
+            .context(UnescapeSnafu)?;
 
           value = Some(SpannedString {
             content: v,

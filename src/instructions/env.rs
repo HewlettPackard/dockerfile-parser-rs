@@ -23,7 +23,7 @@ impl EnvVar {
   pub fn new(span: Span, key: SpannedString, value: impl Into<BreakableString>) -> Self {
     EnvVar {
       span,
-      key: key,
+      key,
       value: value.into(),
     }
   }
@@ -53,7 +53,7 @@ fn parse_env_pair(record: Pair) -> Result<EnvVar> {
         );
       },
       Rule::env_pair_quoted_value => {
-        let v = unquote(field.as_str()).context(UnescapeError)?;
+        let v = unquote(field.as_str()).context(UnescapeSnafu)?;
 
         value = Some(
           BreakableString::new(&field).add_string(&field, v)
@@ -116,7 +116,7 @@ impl EnvInstruction {
         Rule::env_name => key = Some(parse_string(&field)?),
         Rule::env_single_value => value = Some(parse_any_breakable(field)?),
         Rule::env_single_quoted_value => {
-          let v = unquote(field.as_str()).context(UnescapeError)?;
+          let v = unquote(field.as_str()).context(UnescapeSnafu)?;
 
           value = Some(
             BreakableString::new(&field).add_string(&field, v)

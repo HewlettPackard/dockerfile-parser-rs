@@ -315,7 +315,7 @@ pub struct Dockerfile {
 
 fn parse_dockerfile(input: &str) -> Result<Dockerfile> {
   let dockerfile = DockerfileParser::parse(Rule::dockerfile, input)
-    .context(ParseError)?
+    .context(ParseSnafu)?
     .next()
     .ok_or(Error::UnknownParseError)?;
 
@@ -374,7 +374,7 @@ impl Dockerfile {
   {
     let mut buf = String::new();
     let mut buf_reader = BufReader::new(reader);
-    buf_reader.read_to_string(&mut buf).context(ReadError)?;
+    buf_reader.read_to_string(&mut buf).context(ReadSnafu)?;
 
     Dockerfile::parse(&buf)
   }
