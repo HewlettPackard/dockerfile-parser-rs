@@ -243,6 +243,115 @@ fn parse_label() -> Result<(), dockerfile_parser::Error> {
 }
 
 #[test]
+fn parse_env() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(
+        r#"
+    ENV foo=bar
+
+    ENV foo="bar"
+
+    ENV foo=bar\ baz
+
+    RUN foo
+  "#,
+    )?;
+
+    assert_eq!(dockerfile.instructions.len(), 4);
+
+    assert_eq!(
+        dockerfile.instructions[0].as_env().unwrap(),
+        &EnvInstruction {
+            span: Span::new(5, 16),
+            vars: vec![EnvVar::new(
+                Span::new(9, 16),
+                SpannedString {
+                    span: Span::new(9, 12),
+                    content: "foo".to_string(),
+                },
+                BreakableString {
+                    span: Span::new(13, 16),
+                    components: vec![BreakableStringComponent::String(
+                        SpannedString {
+                            span: Span::new(13, 16),
+                            content: "bar".to_string(),
+                        },
+                    )]
+                },
+            )]
+        }
+    );
+
+    assert_eq!(
+        dockerfile.instructions[1].as_env().unwrap(),
+        &EnvInstruction {
+            span: Span::new(22, 35),
+            vars: vec![EnvVar::new(
+                Span::new(26, 35),
+                SpannedString {
+                    span: Span::new(26, 29),
+                    content: "foo".to_string(),
+                },
+                BreakableString {
+                    span: Span::new(30, 35),
+                    components: vec![BreakableStringComponent::String(
+                        SpannedString {
+                            span: Span::new(30, 35),
+                            content: "bar".to_string(),
+                        },
+                    )]
+                },
+            )]
+        }
+    );
+
+    assert_eq!(
+        dockerfile.instructions[2].as_env().unwrap(),
+        &EnvInstruction {
+            span: Span::new(41, 57),
+            vars: vec![EnvVar::new(
+                Span::new(45, 57),
+                SpannedString {
+                    span: Span::new(45, 48),
+                    content: "foo".to_string(),
+                },
+                BreakableString {
+                    span: Span::new(49, 57),
+                    components: vec![BreakableStringComponent::String(
+                        SpannedString {
+                            span: Span::new(49, 57),
+                            content: "bar baz".to_string(),
+                        },
+                    )]
+                },
+            )]
+        }
+    );
+
+    assert_eq!(
+        &dockerfile.instructions[3]
+            .as_run()
+            .unwrap()
+            .as_shell()
+            .unwrap()
+            .to_string(),
+        "foo"
+    );
+
+    // ambiguous line continuation is an error
+    assert!(Dockerfile::parse(
+        r#"
+    ENV foo="bar\
+          baz"\
+
+    RUN foo
+  "#
+    )
+    .is_err());
+
+    Ok(())
+}
+
+#[test]
 fn parse_comment() -> Result<(), dockerfile_parser::Error> {
     let dockerfile = Dockerfile::parse(
         r#"

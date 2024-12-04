@@ -37,7 +37,7 @@ pub(crate) fn parse_string(field: &Pair) -> Result<SpannedString> {
   let content = if matches!(field_str.chars().next(), Some('"' | '\'' | '`')) {
     unquote(field_str).context(UnescapeError)?
   } else {
-    field_str.to_string()
+    field_str.replace("\\ ", " ")
   };
 
   Ok(SpannedString {

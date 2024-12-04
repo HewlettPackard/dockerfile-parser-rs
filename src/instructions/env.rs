@@ -49,7 +49,7 @@ fn parse_env_pair(record: Pair) -> Result<EnvVar> {
       Rule::env_name => key = Some(parse_string(&field)?),
       Rule::env_pair_value => {
         value = Some(
-          BreakableString::new(&field).add_string(&field, field.as_str())
+          BreakableString::new(&field).add_string(&field, field.as_str().replace("\\ ", " "))
         );
       },
       Rule::env_pair_quoted_value => {
@@ -183,6 +183,21 @@ mod tests {
             content: "foo".to_string(),
           },
           ((8, 11), "bar"),
+        )],
+      }
+    );
+
+    assert_eq!(
+      parse_single(r#"env foo=bar\ baz"#, Rule::env)?.into_env().unwrap(),
+      EnvInstruction {
+        span: Span::new(0, 16),
+        vars: vec![EnvVar::new(
+          Span::new(4, 16),
+          SpannedString {
+            span: Span::new(4, 7),
+            content: "foo".to_string(),
+          },
+          ((8, 16), "bar baz"),
         )],
       }
     );

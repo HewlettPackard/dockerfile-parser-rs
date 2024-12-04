@@ -152,6 +152,25 @@ mod tests {
     );
 
     assert_eq!(
+      parse_single(r#"label foo=bar\ baz"#, Rule::label)?,
+      LabelInstruction {
+        span: Span::new(0, 18),
+        labels: vec![
+          Label::new(
+            Span::new(6, 18),
+            SpannedString {
+              span: Span::new(6, 9),
+              content: "foo".to_string(),
+            }, SpannedString {
+              span: Span::new(10, 18),
+              content: "bar baz".to_string()
+            },
+          )
+        ]
+      }.into()
+    );
+
+    assert_eq!(
       parse_single("label foo.bar=baz", Rule::label)?,
       LabelInstruction {
         span: Span::new(0, 17),

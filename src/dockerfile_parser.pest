@@ -32,7 +32,7 @@ step = _{
 // insignificant whitespace, not repeated
 ws = _{ " " | "\t" }
 
-comment = @{ "#" ~ (!NEWLINE ~ ANY)* }
+comment = @{ "#" ~ any_eol }
 comment_line = _{ ws* ~ comment ~ NEWLINE? }
 empty_line = _{ ws* ~ NEWLINE }
 
@@ -48,6 +48,7 @@ string = ${ single_quoted_string | double_quoted_string }
 
 // a line continuation, allowing an instruction to continue onto a new line
 line_continuation = _{ "\\" ~ ws* ~ NEWLINE }
+word_continuation = _{ "\\" ~ ws }
 
 // whitespace that may appear between instruction arguments
 // this allows instructions to expand past a newline if escaped
@@ -56,10 +57,10 @@ arg_ws = _{ (ws | line_continuation ~ (comment_line | empty_line)*)+ }
 // like arg_ws, but where whitespace is optional
 arg_ws_maybe = _{ (ws | line_continuation ~ (comment_line | empty_line)*)* }
 
-// continues consuming input beyond a newline, if the newline is preceeded by an
+// continues consuming input beyond a newline, if the newline is preceded by an
 // escape (\)
 // these tokens need to be preserved in the final tree so they can be handled
-// appropraitely; pest's ignore rules aren't sufficient for our needs
+// appropriately; pest's ignore rules aren't sufficient for our needs
 any_content = @{
   (
     !NEWLINE ~
@@ -90,6 +91,8 @@ identifier_whitespace = _{ (!ws ~ (ASCII_ALPHANUMERIC | "_" | "-"))+ }
 // consumes until whitespace or = (for key in key=value pairs)
 any_equals = _{ (!(NEWLINE | ws | "=") ~ ANY)+ }
 
+not_escaped_whitespace = _{ ((word_continuation | !(NEWLINE | EOI | arg_ws)) ~ ANY)+ }
+
 // parses ["foo", "bar", "baz"] with excessive escaping
 string_array = _{
   (
@@ -116,7 +119,7 @@ arg = { ^"arg" ~ arg_ws ~ arg_name ~ ("=" ~ (arg_quoted_value | arg_value))? }
 
 label_name = ${ any_equals }
 label_quoted_name = ${ string }
-label_value = ${ any_whitespace }
+label_value = ${ not_escaped_whitespace }
 label_quoted_value = ${ string }
 label_pair = {
   (label_quoted_name | label_name) ~ "=" ~ (label_quoted_value | label_value)
@@ -145,7 +148,7 @@ copy_pathspec = @{ any_whitespace }
 copy = { ^"copy" ~ (arg_ws ~ copy_flag)* ~ (arg_ws ~ copy_pathspec){2,} }
 
 env_name = ${ (ASCII_ALPHANUMERIC | "_")+ }
-env_pair_value = ${ any_whitespace }
+env_pair_value = ${ not_escaped_whitespace }
 env_pair_quoted_value = ${ string }
 env_pair = @{ env_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair?)+ }
