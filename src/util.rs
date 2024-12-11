@@ -46,6 +46,16 @@ pub(crate) fn parse_string(field: &Pair) -> Result<SpannedString> {
   })
 }
 
+pub(crate) fn parse_short(field: &Pair) -> Result<SpannedShort> {
+  let str_span = Span::from_pair(field);
+  let field_str = field.as_str();
+
+  Ok(SpannedShort {
+    span: str_span,
+    content: u16::from_str_radix(&field_str, 10).unwrap(),
+  })
+}
+
 /// Removes escaped line breaks (\\\n) from a string
 ///
 /// This should be used to clean any input from the any_breakable rule
@@ -136,6 +146,25 @@ impl AsRef<str> for SpannedString {
 }
 
 impl fmt::Display for SpannedString {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.content.fmt(f)
+  }
+}
+
+/// A short with a character span.
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
+pub struct SpannedShort {
+  pub span: Span,
+  pub content: u16,
+}
+
+impl AsRef<u16> for SpannedShort {
+  fn as_ref(&self) -> &u16 {
+    &self.content
+  }
+}
+
+impl fmt::Display for SpannedShort {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.content.fmt(f)
   }

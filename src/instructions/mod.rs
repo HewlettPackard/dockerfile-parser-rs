@@ -24,6 +24,9 @@ pub use entrypoint::*;
 mod cmd;
 pub use cmd::*;
 
+mod expose;
+pub use expose::*;
+
 mod misc;
 pub use misc::*;
 

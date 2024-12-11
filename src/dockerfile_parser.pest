@@ -15,12 +15,13 @@ step = _{
     entrypoint |
     cmd |
     env |
+    expose |
 
     // todos:
     // add | workdir | user
 
     // things that we probably won't bother supporting
-    // expose | volume | onbuild | stopsignal | healthcheck | shell
+    // volume | onbuild | stopsignal | healthcheck | shell
 
     // deprecated: maintainer
 
@@ -153,6 +154,11 @@ env_single_quoted_value = ${ string }
 env_single_value = @{ any_breakable }
 env_single = {  arg_ws ~ env_name ~ arg_ws ~ (env_single_quoted_value | env_single_value) }
 env = { ^"env" ~ (env_single | env_pairs) }
+
+expose_protocol = ${ "tcp" | "udp" }
+expose_port_number = ${ ASCII_DIGIT+ }
+expose_port = @{ expose_port_number ~ ("/" ~ expose_protocol)?}
+expose = { ^"expose" ~ (arg_ws ~ expose_port?)+}
 
 misc_instruction = @{ ASCII_ALPHA+ }
 misc_arguments = @{ any_breakable }
