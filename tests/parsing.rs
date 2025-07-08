@@ -380,3 +380,45 @@ fn parse_from_sha256_digest() -> Result<(), dockerfile_parser::Error> {
 
     Ok(())
 }
+
+
+#[test]
+fn parse_from_sha256_digest_and_tag() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(
+        r#"
+    FROM alpine:latest@sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7 as foo
+  "#,
+    )?;
+
+    assert_eq!(dockerfile.instructions.len(), 1);
+
+    assert_eq!(
+        dockerfile.instructions[0].as_from(),
+        Some(&FromInstruction {
+            index: 0,
+            span: (5, 102).into(),
+            image: SpannedString {
+                span: Span { start: 10, end: 95 },
+                content:
+                    "alpine:latest@sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7"
+                        .into(),
+            },
+            image_parsed: ImageRef {
+                registry: None,
+                image: "alpine".into(),
+                tag: Some("latest".into()),
+                hash: Some(
+                    "sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7"
+                        .into()
+                ),
+            },
+            alias: Some(SpannedString {
+                span: Span { start: 99, end: 102 },
+                content: "foo".into(),
+            }),
+            flags: vec![],
+        })
+    );
+
+    Ok(())
+}
