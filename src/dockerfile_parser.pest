@@ -59,11 +59,12 @@ arg_ws_maybe = _{ (ws | line_continuation ~ (comment_line | empty_line)*)* }
 // continues consuming input beyond a newline, if the newline is preceeded by an
 // escape (\)
 // these tokens need to be preserved in the final tree so they can be handled
-// appropraitely; pest's ignore rules aren't sufficient for our needs
+// appropriately; pest's ignore rules aren't sufficient for our needs
 any_content = @{
   (
     !NEWLINE ~
     !line_continuation ~
+    !run_heredoc ~
     ANY
   )+
 }
@@ -71,6 +72,9 @@ any_breakable = ${
   (
     // can be any comment string (no line continuation required)
     comment_line ~ any_breakable?
+  ) | (
+    // allow a leading line continuation before any content or comments
+    line_continuation ~ any_breakable
   ) | (
     // ... OR some piece of content, requiring a continuation EXCEPT on the
     // final line
@@ -81,8 +85,14 @@ any_breakable = ${
 // consumes any character until the end of the line
 any_eol = _{ (!NEWLINE ~ ANY)* }
 
+// a single character that can appear inside a whitespace-bounded token —
+// anything that isn't a token-ending newline, EOI, arg_ws boundary, or
+// heredoc operator. Used as the building block of `any_whitespace` (one+)
+// and `env_pair_value` (zero+).
+whitespace = _{ !(NEWLINE | EOI | arg_ws | heredoc_op) ~ ANY }
+
 // consumes all characters until the next whitespace
-any_whitespace = _{ (!(NEWLINE | EOI | arg_ws) ~ ANY)+ }
+any_whitespace = _{ whitespace+ }
 
 // consumes identifier characters until the next whitespace
 identifier_whitespace = _{ (!ws ~ (ASCII_ALPHANUMERIC | "_" | "-"))+ }
@@ -100,6 +110,22 @@ string_array = _{
     arg_ws_maybe ~ "]"
   ) | "[" ~ arg_ws_maybe ~ "]"
 }
+
+// "<<" or "<<-" (dash variant strips leading tabs from body and terminator)
+heredoc_op = _{ "<<" ~ "-"? }
+heredoc_delim_str = _{ (ASCII_ALPHANUMERIC | "_" | "-" | "." | "/")+ }
+
+// allow optional surrounding ' or " on the open form; the PUSHed token is
+// always the unquoted name, so the terminator matches `EOF` not `'EOF'`
+heredoc_delim = _{
+    ("'" ~ PUSH(heredoc_delim_str) ~ "'")
+  | ("\"" ~ PUSH(heredoc_delim_str) ~ "\"")
+  | PUSH(heredoc_delim_str)
+}
+// terminator: optional leading tabs (for <<- support) then the POPped name
+heredoc_terminator = _{ "\t"* ~ POP }
+heredoc_line = @{ !(heredoc_terminator) ~ any_eol ~ NEWLINE }
+heredoc_body = @{ heredoc_line* }
 
 from_flag_name = @{ ASCII_ALPHA+ }
 from_flag_value = @{ any_whitespace }
@@ -126,9 +152,17 @@ label_single_quoted_name = { string }
 label_single = { arg_ws ~ (label_single_quoted_name | label_single_name) ~ arg_ws ~ (label_quoted_value | label_value) }
 label = { ^"label" ~ (label_single | (arg_ws ~ label_pair?)+) }
 
-run_shell = @{ any_breakable }
+run_heredoc = { heredoc_op ~ arg_ws_maybe ~ heredoc_delim ~ any_eol ~ NEWLINE ~ heredoc_body ~ heredoc_terminator }
+run_shell = { run_heredoc | (any_breakable ~ run_heredoc) | any_breakable }
 run_exec = { string_array }
-run = { ^"run" ~ arg_ws ~ (run_exec | run_shell) }
+
+// RUN options (BuildKit options): --device, --mount, --network, --security
+// See: https://docs.docker.com/reference/dockerfile/#run
+run_option_name = @{ ASCII_ALPHA+ }
+run_option_value = @{ any_whitespace }
+run_option = { "--" ~ run_option_name ~ "=" ~ run_option_value }
+
+run = { ^"run" ~ (arg_ws ~ run_option)* ~ ( (arg_ws ~ run_exec) | (ws+ ~ run_shell) ) }
 
 entrypoint_shell = @{ any_breakable }
 entrypoint_exec = { string_array }
@@ -140,12 +174,24 @@ cmd = { ^"cmd" ~ arg_ws ~ (cmd_exec | cmd_shell) }
 
 copy_flag_name = @{ ASCII_ALPHA+ }
 copy_flag_value = @{ any_whitespace }
-copy_flag = { "--" ~ copy_flag_name ~ "=" ~ copy_flag_value }
+// `=value` is optional so boolean flags like `--link` parse without a value;
+// the Rust layer (`CopyFlag::from_record`) substitutes "true" in that case,
+// matching BuildKit's `--link == --link=true` semantic.
+copy_flag = { "--" ~ copy_flag_name ~ ("=" ~ copy_flag_value)? }
 copy_pathspec = @{ any_whitespace }
-copy = { ^"copy" ~ (arg_ws ~ copy_flag)* ~ (arg_ws ~ copy_pathspec){2,} }
+copy_standard = { (arg_ws ~ copy_flag)* ~ (arg_ws ~ copy_pathspec){2,} }
+copy_heredoc = {
+  (arg_ws ~ copy_flag)* ~
+  (arg_ws ~ heredoc_op ~ arg_ws_maybe ~ heredoc_delim) ~
+  (arg_ws ~ copy_pathspec) ~
+  arg_ws_maybe ~ NEWLINE ~
+  (heredoc_body ~ heredoc_terminator)
+}
+copy = { ^"copy" ~ ( copy_heredoc |copy_standard) }
 
 env_name = ${ (ASCII_ALPHANUMERIC | "_")+ }
-env_pair_value = ${ any_whitespace }
+// like any_whitespace but allows zero chars, so `ENV FOO=` parses as FOO -> ""
+env_pair_value = ${ whitespace* }
 env_pair_quoted_value = ${ string }
 env_pair = @{ env_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair?)+ }

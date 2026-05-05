@@ -57,6 +57,7 @@ pub(crate) fn clean_escaped_breaks(s: &str) -> String {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ShellOrExecExpr {
   Shell(BreakableString),
+  ShellWithHeredoc(BreakableString, Heredoc),
   Exec(StringArray),
 }
 
@@ -96,6 +97,22 @@ impl ShellOrExecExpr {
   pub fn as_exec(&self) -> Option<&StringArray> {
     if let ShellOrExecExpr::Exec(s) = self {
       Some(s)
+    } else {
+      None
+    }
+  }
+
+  pub fn into_shell_with_heredoc(self) -> Option<(BreakableString, Heredoc)> {
+    if let ShellOrExecExpr::ShellWithHeredoc(s, h) = self {
+      Some((s, h))
+    } else {
+      None
+    }
+  }
+  
+  pub fn as_shell_with_heredoc(&self) -> Option<(&BreakableString, &Heredoc)> {
+    if let ShellOrExecExpr::ShellWithHeredoc(s, h) = self {
+      Some((s, h))
     } else {
       None
     }
@@ -274,5 +291,32 @@ pub(crate) fn parse_any_breakable(pair: Pair) -> Result<BreakableString> {
   Ok(BreakableString {
     span: (&pair).into(),
     components: parse_any_breakable_inner(pair)?,
+  })
+}
+
+/// A heredoc expression
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
+
+pub struct Heredoc {
+  pub span: Span,
+  pub content: String,
+}
+
+pub(crate) fn parse_heredoc(record: Pair) -> Result<Heredoc> {
+  let span = Span::from_pair(&record);
+  let content;
+
+  match record.as_rule() {
+    Rule::run_heredoc => {
+      content = record.as_str().to_string();
+    }
+    _ => return {
+      Err(unexpected_token(record))
+    }
+  }
+
+  Ok(Heredoc {
+    span,
+    content,
   })
 }

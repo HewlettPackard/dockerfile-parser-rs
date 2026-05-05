@@ -302,6 +302,118 @@ mod tests {
   }
 
   #[test]
+  fn parse_single_parses_env_with_empty_value() -> Result<()> {
+    assert_eq!(
+      parse_single(r#"env FOO="#, Rule::env)?.into_env().unwrap(),
+      EnvInstruction {
+        span: Span::new(0, 8),
+        vars: vec![EnvVar::new(
+          Span::new(4, 8),
+          SpannedString {
+            span: Span::new(4, 7),
+            content: "FOO".to_string(),
+          },
+          ((8, 8), ""),
+        )],
+      }
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn parse_single_parses_env_with_empty_value_then_pair() -> Result<()> {
+    assert_eq!(
+      parse_single(r#"env FOO= BAR=baz"#, Rule::env)?.into_env().unwrap().vars,
+      vec![
+        EnvVar::new(
+          Span::new(4, 8),
+          SpannedString {
+            span: Span::new(4, 7),
+            content: "FOO".to_string(),
+          },
+          ((8, 8), "")
+        ),
+        EnvVar::new(
+          Span::new(9, 16),
+          SpannedString {
+            span: Span::new(9, 12),
+            content: "BAR".to_string(),
+          },
+          ((13, 16), "baz")
+        ),
+      ]
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn parse_single_parses_env_with_pair_then_empty_value() -> Result<()> {
+    assert_eq!(
+      parse_single(r#"env FOO=bar BAR="#, Rule::env)?.into_env().unwrap().vars,
+      vec![
+        EnvVar::new(
+          Span::new(4, 11),
+          SpannedString {
+            span: Span::new(4, 7),
+            content: "FOO".to_string(),
+          },
+          ((8, 11), "bar")
+        ),
+        EnvVar::new(
+          Span::new(12, 16),
+          SpannedString {
+            span: Span::new(12, 15),
+            content: "BAR".to_string(),
+          },
+          ((16, 16), "")
+        ),
+      ]
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn parse_single_parses_env_with_empty_value_and_continuation() -> Result<()> {
+    assert_eq!(
+      parse_single("env FOO= \\\n  BAR=baz", Rule::env)?.into_env().unwrap().vars,
+      vec![
+        EnvVar::new(
+          Span::new(4, 8),
+          SpannedString {
+            span: Span::new(4, 7),
+            content: "FOO".to_string(),
+          },
+          ((8, 8), "")
+        ),
+        EnvVar::new(
+          Span::new(13, 20),
+          SpannedString {
+            span: Span::new(13, 16),
+            content: "BAR".to_string(),
+          },
+          ((17, 20), "baz")
+        ),
+      ]
+    );
+
+    Ok(())
+  }
+
+  #[test]
+  fn parse_single_env_with_empty_value_round_trips_to_empty_string() -> Result<()> {
+    let env = parse_single(r#"env FOO="#, Rule::env)?.into_env().unwrap();
+    assert_eq!(env.vars.len(), 1);
+    assert_eq!(env.vars[0].key.content, "FOO");
+    assert_eq!(env.vars[0].value.to_string(), "");
+    assert!(env.vars[0].value.span.start <= env.vars[0].value.span.end);
+
+    Ok(())
+  }
+
+  #[test]
   fn test_multiline_pairs() -> Result<()> {
     // note: docker allows empty line continuations (but may print a warning)
     assert_eq!(
@@ -422,6 +534,34 @@ mod tests {
             .add_string((24, 52), "Lorem ipsum dolor sit amet, ")
             .add_comment((56, 61), "# baz")
             .add_string((62, 91), "  consectetur adipiscing elit")
+        )
+      ]
+    );
+
+    assert_eq!(
+      parse_single(
+        indoc!(r#"
+          ENV \
+            # hello
+            foo \
+            # bar
+            Lorem ipsum dolor sit amet, \
+            # baz
+            consectetur adipiscing elit
+        "#),
+        Rule::env
+      )?.into_env().unwrap().vars,
+      vec![
+        EnvVar::new(
+          Span::new(18, 101),
+          SpannedString {
+            span: Span::new(18, 21),
+            content: "foo".to_string(),
+          },
+          BreakableString::new((34, 101))
+            .add_string((34, 62), "Lorem ipsum dolor sit amet, ")
+            .add_comment((66, 71), "# baz")
+            .add_string((72, 101), "  consectetur adipiscing elit")
         )
       ]
     );

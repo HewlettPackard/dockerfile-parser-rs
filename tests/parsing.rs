@@ -380,3 +380,97 @@ fn parse_from_sha256_digest() -> Result<(), dockerfile_parser::Error> {
 
     Ok(())
 }
+
+
+#[test]
+fn parse_from_sha256_digest_and_tag() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(
+        r#"
+    FROM alpine:latest@sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7 as foo
+  "#,
+    )?;
+
+    assert_eq!(dockerfile.instructions.len(), 1);
+
+    assert_eq!(
+        dockerfile.instructions[0].as_from(),
+        Some(&FromInstruction {
+            index: 0,
+            span: (5, 102).into(),
+            image: SpannedString {
+                span: Span { start: 10, end: 95 },
+                content:
+                    "alpine:latest@sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7"
+                        .into(),
+            },
+            image_parsed: ImageRef {
+                registry: None,
+                image: "alpine".into(),
+                tag: Some("latest".into()),
+                hash: Some(
+                    "sha256:074d3636ebda6dd446d0d00304c4454f468237fdacf08fb0eeac90bdbfa1bac7"
+                        .into()
+                ),
+            },
+            alias: Some(SpannedString {
+                span: Span { start: 99, end: 102 },
+                content: "foo".into(),
+            }),
+            flags: vec![],
+        })
+    );
+
+    Ok(())
+}
+
+#[test]
+fn parse_env_with_empty_value() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(
+        "FROM ubuntu:24.04\nENV FOO=\nRUN echo done\n",
+    )?;
+
+    assert_eq!(dockerfile.instructions.len(), 3);
+
+    let env = match &dockerfile.instructions[1] {
+        Instruction::Env(e) => e,
+        other => panic!("expected ENV, got {:?}", other),
+    };
+
+    assert_eq!(env.vars.len(), 1);
+    assert_eq!(env.vars[0].key.content, "FOO");
+    assert_eq!(env.vars[0].value.to_string(), "");
+
+    Ok(())
+}
+
+#[test]
+fn parse_run_with_quoted_shell_heredoc() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(indoc!(
+        r#"
+            FROM ubuntu:24.04
+            RUN cat > /test.conf << 'EOF'
+            server {
+                listen 80;
+            }
+            EOF
+        "#
+    ))?;
+
+    assert_eq!(dockerfile.instructions.len(), 2);
+
+    let run = match &dockerfile.instructions[1] {
+        Instruction::Run(r) => r,
+        other => panic!("expected RUN, got {:?}", other),
+    };
+
+    let (breakable, heredoc) = run.expr.as_shell_with_heredoc().expect(
+        "shell heredoc with quoted delimiter should parse as ShellWithHeredoc, not fragment",
+    );
+    assert_eq!(breakable.to_string(), "cat > /test.conf ");
+    assert_eq!(
+        heredoc.content,
+        "<< 'EOF'\nserver {\n    listen 80;\n}\nEOF"
+    );
+
+    Ok(())
+}

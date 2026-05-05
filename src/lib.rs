@@ -43,10 +43,7 @@ mod dockerfile_parser;
 
 pub use image::*;
 pub use error::*;
-pub use parser::*;
-pub use instructions::*;
 pub use splicer::*;
-pub use stage::*;
 pub use util::*;
 pub use crate::dockerfile_parser::*;
 
