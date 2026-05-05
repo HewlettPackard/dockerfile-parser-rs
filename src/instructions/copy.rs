@@ -38,9 +38,13 @@ impl CopyFlag {
       message: "copy flags require a key".into(),
     })?;
 
-    let value = value.ok_or_else(|| Error::GenericParseError {
-      message: "copy flags require a value".into()
-    })?;
+    // Boolean flags like `--link` parse without a `=value`. BuildKit treats
+    // bare `--link` as equivalent to `--link=true`, so we synthesize that here
+    // rather than push the Optional all the way through the public CopyFlag API.
+    let value = value.unwrap_or_else(|| SpannedString {
+      span,
+      content: "true".to_string(),
+    });
 
     Ok(CopyFlag {
       span, name, value
@@ -266,6 +270,54 @@ mod tests {
       }.into()
     );
 
+    Ok(())
+  }
+
+  #[test]
+  fn copy_boolean_flag_bare() -> Result<()> {
+    // BuildKit's --link is a boolean flag and may appear without `=value`.
+    // The grammar accepts this; the synthesized value is "true".
+    let parsed = parse_single("copy --link foo bar", Rule::copy)?
+      .into_copy()
+      .unwrap();
+    assert_eq!(parsed.flags.len(), 1);
+    assert_eq!(parsed.flags[0].name.content, "link");
+    assert_eq!(parsed.flags[0].value.content, "true");
+    assert_eq!(parsed.sources.len(), 1);
+    match &parsed.sources[0] {
+      SourceType::FileName(s) => assert_eq!(s.content, "foo"),
+      _ => panic!("expected FileName source"),
+    }
+    assert_eq!(parsed.destination.content, "bar");
+    Ok(())
+  }
+
+  #[test]
+  fn copy_boolean_flag_with_explicit_value() -> Result<()> {
+    // The explicit `--link=true` / `--link=false` forms still work and the
+    // value round-trips literally.
+    let parsed = parse_single("copy --link=false foo bar", Rule::copy)?
+      .into_copy()
+      .unwrap();
+    assert_eq!(parsed.flags.len(), 1);
+    assert_eq!(parsed.flags[0].name.content, "link");
+    assert_eq!(parsed.flags[0].value.content, "false");
+    Ok(())
+  }
+
+  #[test]
+  fn copy_boolean_flag_mixed_with_valued_flag() -> Result<()> {
+    // Bare boolean flags compose with valued flags in any order.
+    let parsed = parse_single("copy --link --chmod=755 foo bar", Rule::copy)?
+      .into_copy()
+      .unwrap();
+    assert_eq!(parsed.flags.len(), 2);
+    assert_eq!(parsed.flags[0].name.content, "link");
+    assert_eq!(parsed.flags[0].value.content, "true");
+    assert_eq!(parsed.flags[1].name.content, "chmod");
+    assert_eq!(parsed.flags[1].value.content, "755");
+    assert_eq!(parsed.sources.len(), 1);
+    assert_eq!(parsed.destination.content, "bar");
     Ok(())
   }
 

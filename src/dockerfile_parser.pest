@@ -168,7 +168,10 @@ cmd = { ^"cmd" ~ arg_ws ~ (cmd_exec | cmd_shell) }
 
 copy_flag_name = @{ ASCII_ALPHA+ }
 copy_flag_value = @{ any_whitespace }
-copy_flag = { "--" ~ copy_flag_name ~ "=" ~ copy_flag_value }
+// `=value` is optional so boolean flags like `--link` parse without a value;
+// the Rust layer (`CopyFlag::from_record`) substitutes "true" in that case,
+// matching BuildKit's `--link == --link=true` semantic.
+copy_flag = { "--" ~ copy_flag_name ~ ("=" ~ copy_flag_value)? }
 copy_pathspec = @{ any_whitespace }
 copy_standard = { (arg_ws ~ copy_flag)* ~ (arg_ws ~ copy_pathspec){2,} }
 copy_heredoc = {
