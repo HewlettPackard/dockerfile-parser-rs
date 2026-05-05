@@ -105,11 +105,19 @@ string_array = _{
   ) | "[" ~ arg_ws_maybe ~ "]"
 }
 
-heredoc_op = _{ "<<" }
+// "<<" or "<<-" (dash variant strips leading tabs from body and terminator)
+heredoc_op = _{ "<<" ~ "-"? }
 heredoc_delim_str = _{ (ASCII_ALPHANUMERIC | "_" | "-" | "." | "/")+ }
 
-heredoc_delim = _{ PUSH(heredoc_delim_str) }
-heredoc_terminator = _{ POP }
+// allow optional surrounding ' or " on the open form; the PUSHed token is
+// always the unquoted name, so the terminator matches `EOF` not `'EOF'`
+heredoc_delim = _{
+    ("'" ~ PUSH(heredoc_delim_str) ~ "'")
+  | ("\"" ~ PUSH(heredoc_delim_str) ~ "\"")
+  | PUSH(heredoc_delim_str)
+}
+// terminator: optional leading tabs (for <<- support) then the POPped name
+heredoc_terminator = _{ "\t"* ~ POP }
 heredoc_line = @{ !(heredoc_terminator) ~ any_eol ~ NEWLINE }
 heredoc_body = @{ heredoc_line* }
 
