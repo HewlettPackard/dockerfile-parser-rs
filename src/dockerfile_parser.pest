@@ -173,7 +173,8 @@ copy_heredoc = {
 copy = { ^"copy" ~ ( copy_heredoc |copy_standard) }
 
 env_name = ${ (ASCII_ALPHANUMERIC | "_")+ }
-env_pair_value = ${ any_whitespace }
+// like any_whitespace but allows zero chars, so `ENV FOO=` parses as FOO -> ""
+env_pair_value = ${ (!(NEWLINE | EOI | arg_ws | heredoc_op) ~ ANY)* }
 env_pair_quoted_value = ${ string }
 env_pair = @{ env_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair?)+ }

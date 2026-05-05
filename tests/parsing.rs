@@ -422,3 +422,23 @@ fn parse_from_sha256_digest_and_tag() -> Result<(), dockerfile_parser::Error> {
 
     Ok(())
 }
+
+#[test]
+fn parse_env_with_empty_value() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(
+        "FROM ubuntu:24.04\nENV FOO=\nRUN echo done\n",
+    )?;
+
+    assert_eq!(dockerfile.instructions.len(), 3);
+
+    let env = match &dockerfile.instructions[1] {
+        Instruction::Env(e) => e,
+        other => panic!("expected ENV, got {:?}", other),
+    };
+
+    assert_eq!(env.vars.len(), 1);
+    assert_eq!(env.vars[0].key.content, "FOO");
+    assert_eq!(env.vars[0].value.to_string(), "");
+
+    Ok(())
+}
