@@ -302,7 +302,7 @@ mod tests {
   }
 
   #[test]
-  fn env_empty_value() -> Result<()> {
+  fn parse_single_parses_env_with_empty_value() -> Result<()> {
     assert_eq!(
       parse_single(r#"env FOO="#, Rule::env)?.into_env().unwrap(),
       EnvInstruction {
@@ -322,7 +322,7 @@ mod tests {
   }
 
   #[test]
-  fn env_empty_value_then_pair() -> Result<()> {
+  fn parse_single_parses_env_with_empty_value_then_pair() -> Result<()> {
     assert_eq!(
       parse_single(r#"env FOO= BAR=baz"#, Rule::env)?.into_env().unwrap().vars,
       vec![
@@ -349,7 +349,7 @@ mod tests {
   }
 
   #[test]
-  fn env_pair_then_empty_value() -> Result<()> {
+  fn parse_single_parses_env_with_pair_then_empty_value() -> Result<()> {
     assert_eq!(
       parse_single(r#"env FOO=bar BAR="#, Rule::env)?.into_env().unwrap().vars,
       vec![
@@ -376,7 +376,7 @@ mod tests {
   }
 
   #[test]
-  fn env_empty_value_with_continuation() -> Result<()> {
+  fn parse_single_parses_env_with_empty_value_and_continuation() -> Result<()> {
     assert_eq!(
       parse_single("env FOO= \\\n  BAR=baz", Rule::env)?.into_env().unwrap().vars,
       vec![
@@ -403,7 +403,7 @@ mod tests {
   }
 
   #[test]
-  fn env_empty_value_round_trips_to_empty_string() -> Result<()> {
+  fn parse_single_env_with_empty_value_round_trips_to_empty_string() -> Result<()> {
     let env = parse_single(r#"env FOO="#, Rule::env)?.into_env().unwrap();
     assert_eq!(env.vars.len(), 1);
     assert_eq!(env.vars[0].key.content, "FOO");

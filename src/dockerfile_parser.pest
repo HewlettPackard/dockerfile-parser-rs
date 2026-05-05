@@ -85,8 +85,14 @@ any_breakable = ${
 // consumes any character until the end of the line
 any_eol = _{ (!NEWLINE ~ ANY)* }
 
+// a single character that can appear inside a whitespace-bounded token —
+// anything that isn't a token-ending newline, EOI, arg_ws boundary, or
+// heredoc operator. Used as the building block of `any_whitespace` (one+)
+// and `env_pair_value` (zero+).
+whitespace = _{ !(NEWLINE | EOI | arg_ws | heredoc_op) ~ ANY }
+
 // consumes all characters until the next whitespace
-any_whitespace = _{ (!(NEWLINE | EOI | arg_ws | heredoc_op) ~ ANY)+ }
+any_whitespace = _{ whitespace+ }
 
 // consumes identifier characters until the next whitespace
 identifier_whitespace = _{ (!ws ~ (ASCII_ALPHANUMERIC | "_" | "-"))+ }
@@ -182,7 +188,7 @@ copy = { ^"copy" ~ ( copy_heredoc |copy_standard) }
 
 env_name = ${ (ASCII_ALPHANUMERIC | "_")+ }
 // like any_whitespace but allows zero chars, so `ENV FOO=` parses as FOO -> ""
-env_pair_value = ${ (!(NEWLINE | EOI | arg_ws | heredoc_op) ~ ANY)* }
+env_pair_value = ${ whitespace* }
 env_pair_quoted_value = ${ string }
 env_pair = @{ env_name ~ "=" ~ (env_pair_quoted_value | env_pair_value) }
 env_pairs = { (arg_ws ~ env_pair?)+ }
