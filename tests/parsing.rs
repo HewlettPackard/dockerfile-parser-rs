@@ -422,3 +422,35 @@ fn parse_from_sha256_digest_and_tag() -> Result<(), dockerfile_parser::Error> {
 
     Ok(())
 }
+
+#[test]
+fn parse_run_with_quoted_shell_heredoc() -> Result<(), dockerfile_parser::Error> {
+    let dockerfile = Dockerfile::parse(indoc!(
+        r#"
+            FROM ubuntu:24.04
+            RUN cat > /test.conf << 'EOF'
+            server {
+                listen 80;
+            }
+            EOF
+        "#
+    ))?;
+
+    assert_eq!(dockerfile.instructions.len(), 2);
+
+    let run = match &dockerfile.instructions[1] {
+        Instruction::Run(r) => r,
+        other => panic!("expected RUN, got {:?}", other),
+    };
+
+    let (breakable, heredoc) = run.expr.as_shell_with_heredoc().expect(
+        "shell heredoc with quoted delimiter should parse as ShellWithHeredoc, not fragment",
+    );
+    assert_eq!(breakable.to_string(), "cat > /test.conf ");
+    assert_eq!(
+        heredoc.content,
+        "<< 'EOF'\nserver {\n    listen 80;\n}\nEOF"
+    );
+
+    Ok(())
+}
