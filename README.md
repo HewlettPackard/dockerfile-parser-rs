@@ -1,4 +1,6 @@
-# dockerfile-parser-rs
+# This project has been deprecated and will no longer be updated
+
+## dockerfile-parser-rs
 
 [![docs.rs](https://docs.rs/dockerfile-parser/badge.svg)](https://docs.rs/dockerfile-parser/)
 
